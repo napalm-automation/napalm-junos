@@ -589,7 +589,11 @@ class JunOSDriver(NetworkDriver):
         for bgp_group in bgp_items:
             bgp_group_name    = bgp_group[0]
             bgp_group_details = bgp_group[1]
-            bgp_config[bgp_group_name] = {field: _DATATYPE_DEFAULT_.get(datatype) for field, datatype in _GROUP_FIELDS_DATATYPE_MAP_.iteritems() if '_prefix_limit' not in field}
+            bgp_config[bgp_group_name] = {
+                field: _DATATYPE_DEFAULT_.get(datatype) \
+                for field, datatype in _GROUP_FIELDS_DATATYPE_MAP_.iteritems() \
+                if '_prefix_limit' not in field
+            }
             for elem in bgp_group_details:
                 if not('_prefix_limit' not in elem[0] and elem[1] is not None):
                     continue
