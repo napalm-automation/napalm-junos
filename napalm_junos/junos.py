@@ -414,6 +414,7 @@ class JunOSDriver(NetworkDriver):
 
         return cli_output
 
+
     @staticmethod
     def _convert(to, who, default = u''):
         if who is None:
@@ -423,7 +424,8 @@ class JunOSDriver(NetworkDriver):
         except:
             return default
 
-    def get_bgp_config(self, group = '', neighbor = ''):
+
+    def get_bgp_config(self, group='', neighbor=''):
 
         def update_dict(d, u): # for deep dictionary update
             for k, v in u.iteritems():
@@ -485,8 +487,8 @@ class JunOSDriver(NetworkDriver):
             'local_address'                                 : unicode,
             'local_as'                                      : int,
             'remote_as'                                     : int,
-            'import_policy'                                 : unicode,
-            'export_policy'                                 : unicode,
+            'import_policy'                                 : list,
+            'export_policy'                                 : list,
             'inet_unicast_limit_prefix_limit'               : int,
             'inet_unicast_teardown_threshold_prefix_limit'  : int,
             'inet_unicast_teardown_timeout_prefix_limit'    : int,
@@ -555,14 +557,24 @@ class JunOSDriver(NetworkDriver):
             if neighbor and bgp_peer_address != neighbor:
                 continue # if filters applied, jump over all other neighbors
             bgp_group_details = bgp_group_neighbor[1]
-            bgp_peer_details  = {field: _DATATYPE_DEFAULT_.get(datatype) for field, datatype in _PEER_FIELDS_DATATYPE_MAP_.iteritems() if '_prefix_limit' not in field}
+            bgp_peer_details  = {
+                field: _DATATYPE_DEFAULT_.get(datatype) \
+                for field, datatype in _PEER_FIELDS_DATATYPE_MAP_.iteritems() \
+                if '_prefix_limit' not in field
+            }
             for elem in bgp_group_details:
-                if '_prefix_limit' not in elem[0] and elem[1] is not None:
-                    datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
-                    default  = _DATATYPE_DEFAULT_.get(datatype)
-                    bgp_peer_details.update({
-                        elem[0]: self._convert(datatype, elem[1], default)
-                    })
+                if not('_prefix_limit' not in elem[0] and elem[1] is not None):
+                    continue
+                datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
+                default  = _DATATYPE_DEFAULT_.get(datatype)
+                key = elem[0]
+                value = elem[1]
+                if key in ['export_policy', 'import_policy']:
+                    if not isinstance(value, list):
+                        value = [value]
+                bgp_peer_details.update({
+                    key: self._convert(datatype, value, default)
+                })
             prefix_limit_fields = dict()
             for elem in bgp_group_details:
                 if '_prefix_limit' in elem[0] and elem[1] is not None:
@@ -583,14 +595,24 @@ class JunOSDriver(NetworkDriver):
         for bgp_group in bgp_items:
             bgp_group_name    = bgp_group[0]
             bgp_group_details = bgp_group[1]
-            bgp_config[bgp_group_name] = {field: _DATATYPE_DEFAULT_.get(datatype) for field, datatype in _GROUP_FIELDS_DATATYPE_MAP_.iteritems() if '_prefix_limit' not in field}
+            bgp_config[bgp_group_name] = {
+                field: _DATATYPE_DEFAULT_.get(datatype) \
+                for field, datatype in _GROUP_FIELDS_DATATYPE_MAP_.iteritems() \
+                if '_prefix_limit' not in field
+            }
             for elem in bgp_group_details:
-                if '_prefix_limit' not in elem[0] and elem[1] is not None:
-                    datatype = _GROUP_FIELDS_DATATYPE_MAP_.get(elem[0])
-                    default  = _DATATYPE_DEFAULT_.get(datatype)
-                    bgp_config[bgp_group_name].update({
-                        elem[0]: self._convert(datatype, elem[1], default)
-                    })
+                if not('_prefix_limit' not in elem[0] and elem[1] is not None):
+                    continue
+                datatype = _GROUP_FIELDS_DATATYPE_MAP_.get(elem[0])
+                default  = _DATATYPE_DEFAULT_.get(datatype)
+                key = elem[0]
+                value = elem[1]
+                if key in ['export_policy', 'import_policy']:
+                    if not isinstance(value, list):
+                        value = [value]
+                bgp_config[bgp_group_name].update({
+                    key: self._convert(datatype, value, default)
+                })
             prefix_limit_fields = dict()
             for elem in bgp_group_details:
                 if '_prefix_limit' in elem[0] and elem[1] is not None:
