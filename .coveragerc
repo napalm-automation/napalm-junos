@@ -1,0 +1,7 @@
+[run]
+branch = True
+source = napalm_junos
+omit = napalm_junos/tests/*
+
+[report]
+ignore_errors = True
