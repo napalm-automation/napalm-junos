@@ -20,6 +20,12 @@ from napalm_base.test.base import TestConfigNetworkDriver, TestGettersNetworkDri
 import lxml
 
 
+class SampleTest(unittest.TestCase):
+
+    def runTest(self):
+        pass
+
+
 class TestConfigJunOSDriver(unittest.TestCase, TestConfigNetworkDriver):
 
     @classmethod
