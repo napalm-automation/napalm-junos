@@ -97,7 +97,7 @@ class FakeJunOSDevice:
 
     def cli(self, command=''):
         return self.read_txt_file(
-            'junos/mock_data/{parsed_command}.txt'.format(
+            'napalm_junos/tests/unit/junos/mock_data/{parsed_command}.txt'.format(
                 parsed_command = command.replace(' ', '_')
             )
         )
@@ -121,7 +121,7 @@ class FakeRPCObject:
     def response(self, **rpc_args):
         instance = rpc_args.pop('instance', '')
 
-        xml_string = self._device.read_txt_file('junos/mock_data/{}{}.txt'.format(self.item, instance))
+        xml_string = self._device.read_txt_file('napalm_junos/tests/unit/junos/mock_data/{}{}.txt'.format(self.item, instance))
         return lxml.etree.fromstring(xml_string)
 
 
@@ -134,7 +134,7 @@ class FakeRPCObject:
         filename = get_cmd_str.replace('<', '_').replace('>', '_').replace('/', '_').replace('\n', '').replace(' ', '')
 
         xml_string = self._device.read_txt_file(
-            'junos/mock_data/{filename}.txt'.format(
+            'napalm_junos/tests/unit/junos/mock_data/{filename}.txt'.format(
                 filename = filename[0:150]
             )
         )
