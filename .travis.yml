@@ -14,27 +14,6 @@ deploy:
     tags: true
     branch: master
 script:
-
-- cd test/unit
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_bgp_config
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_bgp_neighbors
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_bgp_neighbors_detail
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_environment
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_facts
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_interfaces
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_interfaces_counters
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_lldp_neighbors
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_lldp_neighbors_detail
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_arp_table
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_ntp_peers
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_ntp_stats
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_interfaces_ip
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_mac_address_table
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_route_to
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_snmp_information
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_probes_config
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_probes_results
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_traceroute
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_users
-- nosetests -v TestJunOSDriver:TestGetterJunOSDriver.test_get_optics
-- cd ../..
+- tox -epep8
+- tox -epy27
+- tod -ecover
