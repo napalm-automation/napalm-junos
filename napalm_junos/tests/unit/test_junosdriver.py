@@ -12,38 +12,52 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import unittest
 
+"""Test Configuration JunOS Network Driver."""
+
+
+from napalm_base.test.base import TestConfigNetworkDriver
+from napalm_base.test.base import TestGettersNetworkDriver
 from napalm_junos.junos import JunOSDriver
-from napalm_base.test.base import TestConfigNetworkDriver, TestGettersNetworkDriver
 
 import lxml
+import unittest
 
 
 class SampleTest(unittest.TestCase):
+    """Sample test class."""
 
-    def runTest(self):
+    def run_test(self):
+        """Sample test method."""
+
         pass
 
 
 class TestConfigJunOSDriver(unittest.TestCase, TestConfigNetworkDriver):
+    """Test JunOS Config Driver."""
 
     @classmethod
     def setUpClass(cls):
+        """Test setup."""
+
         hostname = '127.0.0.1'
         username = 'vagrant'
         password = 'vagrant123'
         cls.vendor = 'junos'
 
-        optional_args = {'port': 12203,}
-        cls.device = JunOSDriver(hostname, username, password, timeout=60, optional_args=optional_args)
+        optional_args = {'port': 12203}
+        cls.device = JunOSDriver(hostname, username, password, timeout=60,
+                                 optional_args=optional_args)
         cls.device.open()
 
 
 class TestGetterJunOSDriver(unittest.TestCase, TestGettersNetworkDriver):
+    """Test JunOS Driver Getter."""
 
     @classmethod
     def setUpClass(cls):
+        """Test setup."""
+
         cls.mock = True
 
         hostname = '192.168.56.203'
@@ -59,7 +73,11 @@ class TestGetterJunOSDriver(unittest.TestCase, TestGettersNetworkDriver):
             cls.device.open()
 
 
-class FakeJunOSDevice:
+class FakeJunOSDevice(object):
+    """Fake JunOS Device Class."""
+
+    # Necessary for fake devices.
+    ON_JUNOS = True
 
     def __init__(self):
         self.rpc = FakeRPCObject(self)
@@ -81,7 +99,8 @@ class FakeJunOSDevice:
             'model': 'FIREFLY-PERIMETER',
             'RE0': {
                 'status': 'Testing',
-                'last_reboot_reason': 'Router rebooted after a normal shutdown.',
+                'last_reboot_reason': ('Router rebooted after '
+                                       'a normal shutdown.'),
                 'model': 'FIREFLY-PERIMETER RE',
                 'up_time': '1 hour, 13 minutes, 37 seconds'
             },
@@ -89,83 +108,100 @@ class FakeJunOSDevice:
             'personality': 'SRX_BRANCH'
         }
 
+    @staticmethod
+    def read_txt_file(filename):
+        """Read text data file."""
 
-    def read_txt_file(self, filename):
         with open(filename) as data_file:
             return data_file.read()
 
-
     def cli(self, command=''):
+        """Mimic CLI commands from text data file."""
+
         return self.read_txt_file(
-            'napalm_junos/tests/unit/junos/mock_data/{parsed_command}.txt'.format(
-                parsed_command = command.replace(' ', '_')
-            )
+            ('napalm_junos/tests/unit/junos/mock_data/{parsed_command}.txt'
+             .format(parsed_command=command.replace(' ', '_')))
         )
 
 
-class FakeRPCObject:
-
-    """
-    Fake RPC caller.
-    """
+class FakeRPCObject(object):
+    """Fake RPC caller."""
 
     def __init__(self, device):
         self._device = device
-
+        self.item = None
 
     def __getattr__(self, item):
         self.item = item
         return self
 
-
     def response(self, **rpc_args):
+        """Return a mocked RPC response."""
+
         instance = rpc_args.pop('instance', '')
 
-        xml_string = self._device.read_txt_file('napalm_junos/tests/unit/junos/mock_data/{}{}.txt'.format(self.item, instance))
-        return lxml.etree.fromstring(xml_string)
-
-
-    def get_config(self, get_cmd='', options={}):
-
-        # get_cmd is an XML tree that requests a specific part of the config
-        # E.g.: <configuration><protocols><bgp><group/></bgp></protocols></configuration>
-
-        get_cmd_str = lxml.etree.tostring(get_cmd)
-        filename = get_cmd_str.replace('<', '_').replace('>', '_').replace('/', '_').replace('\n', '').replace(' ', '')
-
         xml_string = self._device.read_txt_file(
-            'napalm_junos/tests/unit/junos/mock_data/{filename}.txt'.format(
-                filename = filename[0:150]
+            'napalm_junos/tests/unit/junos/mock_data/{}{}.txt'.format(
+                self.item, instance
             )
         )
         return lxml.etree.fromstring(xml_string)
 
+    def get_config(self, get_cmd='', options=None):
+        """Mimic get_config method of RPC object."""
+
+        # get_cmd is an XML tree that requests a specific part of the config
+        # E.g.:
+        # <configuration>
+        #     <protocols>
+        #         <bgp>
+        #             <group/>
+        #         </bgp>
+        #     </protocols>
+        # </configuration>
+
+        if options is None:
+            options = {}
+
+        get_cmd_str = lxml.etree.tostring(get_cmd)
+        filename = (get_cmd_str.replace('<', '_').replace('>', '_')
+                    .replace('/', '_').replace('\n', '').replace(' ', ''))
+
+        xml_string = self._device.read_txt_file(
+            'napalm_junos/tests/unit/junos/mock_data/{filename}.txt'.format(
+                filename=filename[0:150]
+            )
+        )
+        return lxml.etree.fromstring(xml_string)
 
     __call__ = response
 
 
-class FakeConnectionRPCObject:
+class FakeConnectionRPCObject(object):
+    """Will make fake RPC requests.
 
-    """
-    Will make fake RPC requests that usually are directly made via netconf.
+    These are usually directly made via netconf.
     """
 
     def __init__(self, rpc):
         self._rpc = rpc
 
-
     def response(self, non_std_command=None):
-        class RPCReply:
+        """Fake RPC connection response."""
+
+        class RPCReply(object):
+            """Fake RPC Reply response."""
+
             def __init__(self, reply):
                 self._NCElement__doc = reply
         rpc_reply = RPCReply(self._rpc.get_config(get_cmd=non_std_command))
         return rpc_reply
 
-
     __call__ = response
 
 
-class FakeConnection:
+class FakeConnection(object):
+    """Fake RPC connection."""
 
     def __init__(self, rpc):
         self.rpc = FakeConnectionRPCObject(rpc)
