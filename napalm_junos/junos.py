@@ -36,6 +36,7 @@ from napalm_base.exceptions import MergeConfigException
 from napalm_base.exceptions import CommandErrorException
 
 # import local modules
+from napalm_base.utils import string_parsers
 from napalm_junos.utils import junos_views
 
 
@@ -279,7 +280,7 @@ class JunOSDriver(NetworkDriver):
                     (structured_object_data['class'] == 'Fans')):
                 environment_data['fans'][sensor_object]['status'] = False
 
-            for temperature_object, temperature_data in (
+            for _, temperature_data in (
                     temperature_thresholds.items()):
                 structured_temperature_data = (
                     {k: v for k, v in temperature_data})
@@ -403,7 +404,7 @@ class JunOSDriver(NetworkDriver):
         keys = ['local_as', 'remote_as', 'is_up', 'is_enabled',
                 'description', 'remote_id']
         bgp_neighbor_data = {}
-        for instance, instance_data in instances.get().items():
+        for instance, _ in instances.get().items():
             if instance.startswith('__'):
                 # junos internal instances
                 continue
@@ -495,7 +496,7 @@ class JunOSDriver(NetworkDriver):
 
         cli_output = dict()
 
-        if type(commands) is not list:
+        if not isinstance(commands, list):
             raise TypeError('Please enter a valid list of commands!')
 
         for command in commands:
@@ -887,11 +888,11 @@ class JunOSDriver(NetworkDriver):
         ntp_stats = list()
 
         REGEX = (
-            '^\s?(\+|\*|x|-)?([a-zA-Z0-9\.+-:]+)'
-            '\s+([a-zA-Z0-9\.]+)\s+([0-9]{1,2})'
-            '\s+(-|u)\s+([0-9h-]+)\s+([0-9]+)'
-            '\s+([0-9]+)\s+([0-9\.]+)\s+([0-9\.-]+)'
-            '\s+([0-9\.]+)\s?$'
+            r'^\s?(\+|\*|x|-)?([a-zA-Z0-9\.+-:]+)'
+            r'\s+([a-zA-Z0-9\.]+)\s+([0-9]{1,2})'
+            r'\s+(-|u)\s+([0-9h-]+)\s+([0-9]+)'
+            r'\s+([0-9]+)\s+([0-9\.]+)\s+([0-9\.-]+)'
+            r'\s+([0-9\.]+)\s?$'
         )
 
         ntp_assoc_output = self.device.cli('show ntp associations no-resolve')
@@ -1113,7 +1114,7 @@ class JunOSDriver(NetworkDriver):
             if d.get('inactive_reason') is None:
                 d['inactive_reason'] = u''
             communities = d.get('communities')
-            if communities is not None and type(communities) is not list:
+            if communities is not None and not isinstance(communities, list):
                 d['communities'] = [communities]
             d['next_hop'] = unicode(next_hop)
             d_keys = d.keys()
@@ -1281,13 +1282,16 @@ class JunOSDriver(NetworkDriver):
         rpc_reply = self.device._conn.rpc(traceroute_rpc)._NCElement__doc
         traceroute_results = rpc_reply.find('.//traceroute-results')
 
-        traceroute_success = traceroute_results.find('traceroute-success')
+        # TODO(mierdin): Someone needs to use the below line.
+        # Commenting out for now.
+        # traceroute_success = traceroute_results.find('traceroute-success')
         traceroute_failure = self._find_txt(traceroute_results,
                                             'traceroute-failure', '')
         error_message = self._find_txt(traceroute_results,
                                        'rpc-error/error-message', '')
-
-        error = ''
+        # TODO(mierdin): Someone needs to use the below line.
+        # Commenting out for now.
+        # error = ''
 
         if traceroute_failure and error_message:
             return {'error': '{}: {}'.format(traceroute_failure,

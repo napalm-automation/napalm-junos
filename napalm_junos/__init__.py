@@ -13,4 +13,4 @@
 # the License.
 
 """napalm_junos package."""
-from junos import JunOSDriver  # noqa
+from napalm_junos.junos import JunOSDriver  # noqa

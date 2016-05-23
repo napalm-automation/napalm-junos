@@ -35,4 +35,4 @@ class sample_test(SampleTestSuite):
 
     def runTest(self):
 
-        self.assertTrue(True)
+        self.assertTrue(None in [None])

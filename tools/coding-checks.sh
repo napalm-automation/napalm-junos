@@ -29,7 +29,7 @@ run_pylint () {
     local target="${scriptargs:-all}"
 
     if [ "$target" = "all" ]; then
-        files="napalm"
+        files="napalm_junos"
     else
       case "$target" in
         *HEAD~[0-9]*) files=$(git diff --diff-filter=AM --name-only $target -- "*.py");;
