@@ -23,13 +23,13 @@ from lxml.builder import E
 from jnpr.junos import Device
 from jnpr.junos.exception import ConfigLoadError
 from jnpr.junos.exception import ConnectTimeoutError
+from jnpr.junos.exception import RpcTimeoutError
 from jnpr.junos.utils.config import Config
-from jnpr.junos.exception import ConfigLoadError, ConnectTimeoutError
 
 # import NAPALM Base
 from napalm_base.base import NetworkDriver
 from napalm_base.utils import string_parsers
-from napalm_base.helpers import convert
+from napalm_base.exceptions import CommandTimeoutException
 from napalm_base.exceptions import ConnectionException
 from napalm_base.exceptions import ReplaceConfigException
 from napalm_base.exceptions import MergeConfigException
@@ -792,9 +792,10 @@ class JunOSDriver(NetworkDriver):
             remote_as = int(bgp_neighbor[0])
             neighbor_details = deepcopy(default_neighbor_details)
             neighbor_details.update(
-                {elem[0]: (
-                    elem[1] for elem in bgp_neighbor[1]
-                    if elem[1] is not None)}
+                {
+                    elem[0]: elem[1]
+                    for elem in bgp_neighbor[1]if elem[1] is not None
+                }
             )
             options = neighbor_details.pop('options', '')
             if isinstance(options, str):
@@ -1096,9 +1097,12 @@ class JunOSDriver(NetworkDriver):
                 p=prefix_length
             )
             d.update(
-                {key: (False
-                       for key in _BOOLEAN_FIELDS_
-                       if d.get(key) is None)})
+                {
+                    key: False
+                    for key in _BOOLEAN_FIELDS_
+                    if d.get(key) is None
+                }
+            )
 
             as_path = d.get('as_path')
             if as_path is not None:
@@ -1149,7 +1153,11 @@ class JunOSDriver(NetworkDriver):
 
         communities = list()
         for snmp_config_out in snmp_items:
-            community_name = snmp_config_out[0]
+
+            # TODO(mierdin): Someone needs to use the below line.
+            # Commenting out for now.
+            # community_name = snmp_config_out[0]
+
             community_details = snmp_config_out[1]
             communities.append({
                 c[0]: c[1] for c in community_details
