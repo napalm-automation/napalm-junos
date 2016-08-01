@@ -1,9 +1,8 @@
 NAPALM Style Commandments
 =======================
 
-- Step 1: Read the GNSS Development Environment Standards
-  `here <https://wiki.vip.corp.ebay.com/display/neteng/GNSS+Development+Environment>`_ , which
-  we will be following.
+- Step 1: Read the OpenStack Hacking Standards
+  `here <http://docs.openstack.org/developer/hacking/>`_.
 - Step 2: Read on
 
 NAPALM Specific Commandments
