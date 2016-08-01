@@ -27,6 +27,7 @@ from jnpr.junos.exception import ConfigLoadError, ConnectTimeoutError
 # import NAPALM Base
 from napalm_base.base import NetworkDriver
 from napalm_base.utils import string_parsers
+from napalm_base.helpers import convert
 from napalm_base.exceptions import ConnectionException, ReplaceConfigException, MergeConfigException,\
                                    CommandErrorException
 
@@ -415,8 +416,7 @@ class JunOSDriver(NetworkDriver):
                     'parent_interface'          : item.parent_interface,
                     'remote_port'               : item.remote_port,
                     'remote_chassis_id'         : item.remote_chassis_id,
-                    'remote_port'               : item.remote_port,
-                    'remote_port_description'   : item.remote_port_description,
+                    'remote_port_description'   : convert(unicode, item.remote_port_description),
                     'remote_system_name'        : item.remote_system_name,
                     'remote_system_description' : item.remote_system_description,
                     'remote_system_capab'       : item.remote_system_capab,
@@ -1219,3 +1219,58 @@ class JunOSDriver(NetworkDriver):
             users[username] = user_details
 
         return users
+
+    def get_optics(self):
+
+        optics_table = junos_views.junos_intf_optics_table(self.device)
+        optics_table.get()
+        optics_items = optics_table.items()
+
+        # Formatting data into return data structure
+        optics_detail = {}
+        for intf_optic_item in optics_items:
+            optics = dict(intf_optic_item[1])
+            if intf_optic_item[0] not in optics_detail:
+                optics_detail[intf_optic_item[0]] = {}
+
+            # Defaulting avg, min, max values to 0.0 since device does not
+            # return these values
+            intf_optics = {
+                'physical_channels': {
+                    'channel': [{
+                            'index': 0,
+                            'state': {
+                                'input_power': {
+                                    'instant': (
+                                        float(optics['input_power'])
+                                        if optics['input_power'] != '- Inf'
+                                        else 0.0),
+                                    'avg': 0.0,
+                                    'max': 0.0,
+                                    'min': 0.0
+                                    },
+                                'output_power': {
+                                    'instant': (
+                                        float(optics['output_power'])
+                                        if optics['output_power'] != '- Inf'
+                                        else 0.0),
+                                    'avg': 0.0,
+                                    'max': 0.0,
+                                    'min': 0.0
+                                    },
+                                'laser_bias_current': {
+                                    'instant': (
+                                        float(optics['laser_bias_current'])
+                                        if optics['laser_bias_current'] != '- Inf'
+                                        else 0.0),
+                                    'avg': 0.0,
+                                    'max': 0.0,
+                                    'min': 0.0
+                                    }
+                                }
+                        }]
+                    }
+                }
+            optics_detail[intf_optic_item[0]] = intf_optics
+
+        return optics_detail
