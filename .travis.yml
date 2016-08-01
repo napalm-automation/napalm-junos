@@ -17,4 +17,4 @@ deploy:
 script:
 - tox -epep8
 - tox -epy27
-- tod -ecover
+# - tod -ecover   # Not currently working
