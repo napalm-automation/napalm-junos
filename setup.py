@@ -5,6 +5,9 @@ import uuid
 from setuptools import setup, find_packages
 from pip.req import parse_requirements
 
+from setuptools import find_packages
+from setuptools import setup
+
 __author__ = 'David Barroso <dbarrosop@dravetech.com>'
 
 install_reqs = parse_requirements('requirements.txt', session=uuid.uuid1())
@@ -16,7 +19,8 @@ setup(
     packages=find_packages(),
     author="David Barroso",
     author_email="dbarrosop@dravetech.com",
-    description="Network Automation and Programmability Abstraction Layer with Multivendor support",
+    description=("Network Automation and Programmability Abstraction "
+                 "Layer with Multivendor support"),
     classifiers=[
         'Topic :: Utilities',
         'Programming Language :: Python',

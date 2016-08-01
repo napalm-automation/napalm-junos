@@ -844,11 +844,17 @@ class JunOSDriver(NetworkDriver):
         interface_table.get()
         interface_table_items = interface_table.items()
 
+        # if not interface_table_items:
+        #     import pdb; pdb.set_trace()
+
         _FAMILY_VMAP_ = {
             'inet'  : u'ipv4',
             'inet6' : u'ipv6'
             # can add more mappings
         }
+
+        i_var = 0
+        j_var = 0
 
         for interface_details in interface_table_items:
             try:
@@ -859,6 +865,7 @@ class JunOSDriver(NetworkDriver):
                 family_raw = interface_details[1][1][1]
                 family     = _FAMILY_VMAP_.get(family_raw)
                 if not family:
+                    i_var += 1
                     continue
                 if interface not in interfaces_ip.keys():
                     interfaces_ip[interface] = dict()
@@ -868,7 +875,14 @@ class JunOSDriver(NetworkDriver):
                     interfaces_ip[interface][family][address] = dict()
                 interfaces_ip[interface][family][address][u'prefix_length'] = prefix
             except Exception:
+                j_var += 1
                 continue
+
+        if not interfaces_ip:
+            print "\n\n BAD \n\n%s\n\n" % interface_table
+        else:
+            print "\n\n GOOD \n\n%s\n\n" % interface_table
+        #import pdb; pdb.set_trace()
 
         return interfaces_ip
 

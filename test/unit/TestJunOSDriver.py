@@ -59,6 +59,7 @@ class FakeJunOSDevice:
         self.rpc = FakeRPCObject(self)
         self._conn = FakeConnection(self.rpc)
         self.ON_JUNOS = True  # necessary for fake devices
+        self.hostname = 'vsrx'
         self.facts = {
             'domain': None,
             'hostname': 'vsrx',
