@@ -932,6 +932,9 @@ class JunOSDriver(NetworkDriver):
         interface_table.get()
         interface_table_items = interface_table.items()
 
+        # TODO(mierdin): This is the root of the issue - the unit test for this
+        # function will fail if interface_table_items is None, and that happens
+        # intermittently
         # if not interface_table_items:
         #     import pdb; pdb.set_trace()
 
@@ -942,7 +945,7 @@ class JunOSDriver(NetworkDriver):
         }
 
         # These are only incremented, not referenced.
-        # Commenting out for now. (moswalt)
+        # Commenting out for now. (mierdin)
         # i_var = 0
         # j_var = 0
 
@@ -969,7 +972,7 @@ class JunOSDriver(NetworkDriver):
                 # j_var += 1
                 continue
 
-        # TODO(moswalt): remove this, debug information
+        # TODO(mierdin): remove this, debug information
         # if not interfaces_ip:
         #     print "\n\n BAD \n\n%s\n\n" % interface_table
         # else:

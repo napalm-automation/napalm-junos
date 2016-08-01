@@ -129,7 +129,6 @@ class FakeRPCObject(object):
 
     def __init__(self, device):
         self._device = device
-        self.item = None
 
     def __getattr__(self, item):
         self.item = item
