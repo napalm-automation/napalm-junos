@@ -18,8 +18,6 @@ import uuid
 
 from pip.req import parse_requirements
 from setuptools import find_packages
-
-from setuptools import find_packages
 from setuptools import setup
 
 __author__ = 'David Barroso <dbarrosop@dravetech.com>'

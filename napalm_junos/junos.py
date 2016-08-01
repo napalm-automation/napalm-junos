@@ -13,9 +13,9 @@
 # the License.
 
 # import stdlib
-import re
 import collections
 from copy import deepcopy
+import re
 
 # import third party lib
 from lxml.builder import E
@@ -28,15 +28,14 @@ from jnpr.junos.utils.config import Config
 
 # import NAPALM Base
 from napalm_base.base import NetworkDriver
-from napalm_base.utils import string_parsers
+from napalm_base.exceptions import CommandErrorException
 from napalm_base.exceptions import CommandTimeoutException
 from napalm_base.exceptions import ConnectionException
-from napalm_base.exceptions import ReplaceConfigException
 from napalm_base.exceptions import MergeConfigException
-from napalm_base.exceptions import CommandErrorException
+from napalm_base.exceptions import ReplaceConfigException
+from napalm_base.utils import string_parsers
 
 # import local modules
-from napalm_base.utils import string_parsers
 from napalm_junos.utils import junos_views
 
 
@@ -942,8 +941,10 @@ class JunOSDriver(NetworkDriver):
             # can add more mappings
         }
 
-        i_var = 0
-        j_var = 0
+        # These are only incremented, not referenced.
+        # Commenting out for now. (moswalt)
+        # i_var = 0
+        # j_var = 0
 
         for interface_details in interface_table_items:
             try:
@@ -954,7 +955,7 @@ class JunOSDriver(NetworkDriver):
                 family_raw = interface_details[1][1][1]
                 family = _FAMILY_VMAP_.get(family_raw)
                 if not family:
-                    i_var += 1
+                    # i_var += 1
                     continue
                 if interface not in interfaces_ip.keys():
                     interfaces_ip[interface] = dict()
@@ -965,16 +966,15 @@ class JunOSDriver(NetworkDriver):
                 (interfaces_ip[interface][family][address]
                               [u'prefix_length']) = prefix
             except Exception:
-                j_var += 1
+                # j_var += 1
                 continue
-
 
         # TODO(moswalt): remove this, debug information
         # if not interfaces_ip:
         #     print "\n\n BAD \n\n%s\n\n" % interface_table
         # else:
         #     print "\n\n GOOD \n\n%s\n\n" % interface_table
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         return interfaces_ip
 
@@ -1385,39 +1385,39 @@ class JunOSDriver(NetworkDriver):
             intf_optics = {
                 'physical_channels': {
                     'channel': [{
-                            'index': 0,
-                            'state': {
-                                'input_power': {
-                                    'instant': (
-                                        float(optics['input_power'])
-                                        if optics['input_power'] != '- Inf'
-                                        else 0.0),
-                                    'avg': 0.0,
-                                    'max': 0.0,
-                                    'min': 0.0
-                                    },
-                                'output_power': {
-                                    'instant': (
-                                        float(optics['output_power'])
-                                        if optics['output_power'] != '- Inf'
-                                        else 0.0),
-                                    'avg': 0.0,
-                                    'max': 0.0,
-                                    'min': 0.0
-                                    },
-                                'laser_bias_current': {
-                                    'instant': (
-                                        float(optics['laser_bias_current'])
-                                        if optics['laser_bias_current'] != '- Inf'
-                                        else 0.0),
-                                    'avg': 0.0,
-                                    'max': 0.0,
-                                    'min': 0.0
-                                    }
-                                }
-                        }]
-                    }
+                        'index': 0,
+                        'state': {
+                            'input_power': {
+                                'instant': (
+                                    float(optics['input_power'])
+                                    if optics['input_power'] != '- Inf'
+                                    else 0.0),
+                                'avg': 0.0,
+                                'max': 0.0,
+                                'min': 0.0
+                            },
+                            'output_power': {
+                                'instant': (
+                                    float(optics['output_power'])
+                                    if optics['output_power'] != '- Inf'
+                                    else 0.0),
+                                'avg': 0.0,
+                                'max': 0.0,
+                                'min': 0.0
+                            },
+                            'laser_bias_current': {
+                                'instant': (
+                                    float(optics['laser_bias_current'])
+                                    if optics['laser_bias_current'] != '- Inf'
+                                    else 0.0),
+                                'avg': 0.0,
+                                'max': 0.0,
+                                'min': 0.0
+                            }
+                        }
+                    }]
                 }
+            }
             optics_detail[intf_optic_item[0]] = intf_optics
 
         return optics_detail
