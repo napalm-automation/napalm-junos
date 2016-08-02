@@ -888,7 +888,7 @@ class JunOSDriver(NetworkDriver):
         if not ntp_servers:
             return {}
 
-        return {unicode(server[0]):{} for server in ntp_servers}
+        return {unicode(server[0]): {} for server in ntp_servers}
 
     def get_ntp_stats(self):
 
