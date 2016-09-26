@@ -119,12 +119,12 @@ class FakeRPCObject:
             'junos/mock_data/{}{}.txt'.format(self.item, instance))
         return lxml.etree.fromstring(xml_string)
 
-    def get_config(self, get_cmd='', filter_xml=None, options={}):
+    def get_config(self, get_cmd=None, filter_xml=None, options={}):
 
         # get_cmd is an XML tree that requests a specific part of the config
         # E.g.: <configuration><protocols><bgp><group/></bgp></protocols></configuration>
 
-        if get_cmd:
+        if get_cmd is not None:
             get_cmd_str = lxml.etree.tostring(get_cmd)
             filename = get_cmd_str.replace('<', '_')\
                                   .replace('>', '_')\
