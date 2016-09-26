@@ -1326,7 +1326,6 @@ class JunOSDriver(NetworkDriver):
 
         return optics_detail
 
-
     def get_config(self, retrieve='all'):
         rv = {
             'startup': '',
