@@ -134,7 +134,9 @@ class FakeRPCObject:
 
         # no get_cmd means it should mock the eznc get_config
         else:
-            filename = 'get_config-' + options['database']
+            filename = 'get_config__' + '__'.join(
+                ['{0}_{1}'.format(k,v) for k,v in options.items()]
+            )
 
         xml_string = self._device.read_txt_file(
             'junos/mock_data/{filename}.txt'.format(
