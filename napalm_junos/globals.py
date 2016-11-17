@@ -2,6 +2,7 @@
 
 """Globals to be used in the JunOS driver."""
 
+
 class JunOSGlobals:
 
     # used in:
