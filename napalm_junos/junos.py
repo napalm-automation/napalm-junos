@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2015 Spotify AB. All rights reserved.
 #
 # The contents of this file are licensed under the Apache License, Version 2.0
@@ -12,6 +13,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+"""Driver for JunOS devices."""
+
+from __future__ import unicode_literals
+
 # import stdlib
 import collections
 from copy import deepcopy
@@ -25,8 +30,12 @@ from jnpr.junos.exception import ConfigLoadError
 from jnpr.junos.exception import ConnectTimeoutError
 from jnpr.junos.exception import RpcTimeoutError
 from jnpr.junos.utils.config import Config
+from jnpr.junos.exception import ConfigLoadError
+from jnpr.junos.exception import RpcTimeoutError
+from jnpr.junos.exception import ConnectTimeoutError
 
 # import NAPALM Base
+import napalm_base.helpers
 from napalm_base.base import NetworkDriver
 from napalm_base.exceptions import CommandErrorException
 from napalm_base.exceptions import CommandTimeoutException
@@ -34,15 +43,31 @@ from napalm_base.exceptions import ConnectionException
 from napalm_base.exceptions import MergeConfigException
 from napalm_base.exceptions import ReplaceConfigException
 from napalm_base.utils import string_parsers
+from napalm_base.utils import py23_compat
+from napalm_base.exceptions import ConnectionException
+from napalm_base.exceptions import MergeConfigException
+from napalm_base.exceptions import CommandErrorException
+from napalm_base.exceptions import ReplaceConfigException
+from napalm_base.exceptions import CommandTimeoutException
+
 
 # import local modules
 from napalm_junos.utils import junos_views
 
 
 class JunOSDriver(NetworkDriver):
+    """JunOSDriver class - inherits NetworkDriver from napalm_base."""
 
     def __init__(self, hostname, username, password, timeout=60,
                  optional_args=None):
+        """
+        Initialise JunOS driver.
+
+        Optional args:
+            * port (int): custom port
+            * config_lock (True/False): lock configuration DB after
+                the connection is established.
+        """
 
         self.hostname = hostname
         self.username = username
@@ -60,6 +85,7 @@ class JunOSDriver(NetworkDriver):
                              port=self.port)
 
     def open(self):
+        """Open the connection wit the device."""
         try:
             self.device.open()
         except ConnectTimeoutError as cte:
@@ -74,19 +100,30 @@ class JunOSDriver(NetworkDriver):
             self.lock()
 
     def close(self):
+        """Close the connection."""
         if self.config_lock:
             self.unlock()
         self.device.close()
 
     def lock(self):
+        """Lock the config DB."""
         if not self.locked:
             self.device.cu.lock()
             self.locked = True
 
     def unlock(self):
+        """Unlock the config DB."""
         if self.locked:
             self.device.cu.unlock()
             self.locked = False
+
+    def is_alive(self):
+        # evaluate the state of the underlying SSH connection
+        # and also the NETCONF status from PyEZ
+        return {
+            'is_alive': (self.device._conn._session.transport.is_active() and
+                         self.device.connected)
+        }
 
     def _load_candidate(self, filename, config, overwrite):
         if filename is None:
@@ -111,14 +148,17 @@ class JunOSDriver(NetworkDriver):
                 raise MergeConfigException(e.message)
 
     def load_replace_candidate(self, filename=None, config=None):
+        """Open the candidate config and merge."""
         self.config_replace = True
         self._load_candidate(filename, config, True)
 
     def load_merge_candidate(self, filename=None, config=None):
+        """Open the candidate config and replace."""
         self.config_replace = False
         self._load_candidate(filename, config, False)
 
     def compare_config(self):
+        """Compare candidate config with running."""
         diff = self.device.cu.diff()
 
         if diff is None:
@@ -127,38 +167,24 @@ class JunOSDriver(NetworkDriver):
             return diff.strip()
 
     def commit_config(self):
+        """Commit configuration."""
         self.device.cu.commit()
         if not self.config_lock:
             self.unlock()
 
     def discard_config(self):
+        """Discard changes (rollback 0)."""
         self.device.cu.rollback(rb_id=0)
         if not self.config_lock:
             self.unlock()
 
     def rollback(self):
+        """Rollback to previous commit."""
         self.device.cu.rollback(rb_id=1)
         self.commit_config()
 
-    # perhaps both should be moved in napalm_base.helpers at some point
-    @staticmethod
-    def _find_txt(xml_tree, path, default=''):
-        try:
-            return xml_tree.find(path).text.strip()
-        except Exception:
-            return default
-
-    @staticmethod
-    def _convert(to, who, default=u''):
-        if who is None:
-            return default
-        try:
-            return to(who)
-        except Exception:
-            return default
-
     def get_facts(self):
-
+        """Return facts of the device."""
         output = self.device.facts
 
         uptime = '0'
@@ -181,8 +207,7 @@ class JunOSDriver(NetworkDriver):
         }
 
     def get_interfaces(self):
-
-        # init result dict
+        """Return interfaces details."""
         result = {}
 
         interfaces = junos_views.junos_iface_table(self.device)
@@ -194,10 +219,13 @@ class JunOSDriver(NetworkDriver):
                 'is_up': interfaces[iface]['is_up'],
                 'is_enabled': interfaces[iface]['is_enabled'],
                 'description': (interfaces[iface]['description'] or u''),
-                'last_flapped': (
-                    float((interfaces[iface]['last_flapped'] or -1))),
-                'mac_address': (
-                    unicode((interfaces[iface]['mac_address'] or ''))),
+                'last_flapped': float(
+                    (interfaces[iface]['last_flapped'] or -1)
+                ),
+                'mac_address': napalm_base.helpers.convert(
+                    napalm_base.helpers.mac,
+                    interfaces[iface]['mac_address'],
+                    unicode(interfaces[iface]['mac_address'])),
                 'speed': -1
             }
             # result[iface]['last_flapped'] = (
@@ -208,7 +236,7 @@ class JunOSDriver(NetworkDriver):
 
             if match is None:
                 continue
-            speed_value = self._convert(int, match.group(1), -1)
+            speed_value = napalm_base.helpers.convert(int, match.group(1), -1)
             if speed_value == -1:
                 continue
             speed_unit = match.group(2)
@@ -219,15 +247,17 @@ class JunOSDriver(NetworkDriver):
         return result
 
     def get_interfaces_counters(self):
+        """Return interfaces counters."""
         query = junos_views.junos_iface_counter_table(self.device)
         query.get()
-        interface_counters = dict()
+        interface_counters = {}
         for interface, counters in query.items():
             interface_counters[interface] = (
                 {k: v if v is not None else -1 for k, v in counters})
         return interface_counters
 
     def get_environment(self):
+        """Return environment details."""
         environment = junos_views.junos_enviroment_table(self.device)
         routing_engine = junos_views.junos_routing_engine_table(self.device)
         temperature_thresholds = (
@@ -236,7 +266,7 @@ class JunOSDriver(NetworkDriver):
         environment.get()
         routing_engine.get()
         temperature_thresholds.get()
-        environment_data = dict()
+        environment_data = {}
 
         for sensor_object, object_data in environment.items():
             structured_object_data = {k: v for k, v in object_data}
@@ -244,10 +274,10 @@ class JunOSDriver(NetworkDriver):
             if structured_object_data['class'] == 'Power':
                 # Create a dict for the 'power' key
                 try:
-                    environment_data['power'][sensor_object] = dict()
+                    environment_data['power'][sensor_object] = {}
                 except KeyError:
-                    environment_data['power'] = dict()
-                    environment_data['power'][sensor_object] = dict()
+                    environment_data['power'] = {}
+                    environment_data['power'][sensor_object] = {}
 
                 # Set these values to -1, because Junos does not provide them
                 environment_data['power'][sensor_object]['capacity'] = -1.0
@@ -256,27 +286,25 @@ class JunOSDriver(NetworkDriver):
             if structured_object_data['class'] == 'Fans':
                 # Create a dict for the 'fans' key
                 try:
-                    environment_data['fans'][sensor_object] = dict()
+                    environment_data['fans'][sensor_object] = {}
                 except KeyError:
-                    environment_data['fans'] = dict()
-                    environment_data['fans'][sensor_object] = dict()
+                    environment_data['fans'] = {}
+                    environment_data['fans'][sensor_object] = {}
 
-            if ((structured_object_data['status'] == 'OK') and
-                    (structured_object_data['class'] == 'Power')):
+            status = structured_object_data['status']
+            env_class = structured_object_data['class']
+            if (status == 'OK' and env_class == 'Power'):
                 # If status is Failed, Absent or Testing, set status to False.
                 environment_data['power'][sensor_object]['status'] = True
 
-            elif ((structured_object_data['status'] != 'OK') and
-                    (structured_object_data['class'] == 'Power')):
+            elif (status != 'OK' and env_class == 'Power'):
                 environment_data['power'][sensor_object]['status'] = False
 
-            elif ((structured_object_data['status'] == 'OK') and
-                    (structured_object_data['class'] == 'Fans')):
+            elif (status == 'OK' and env_class == 'Fans'):
                 # If status is Failed, Absent or Testing, set status to False.
                 environment_data['fans'][sensor_object]['status'] = True
 
-            elif ((structured_object_data['status'] != 'OK') and
-                    (structured_object_data['class'] == 'Fans')):
+            elif (status != 'OK' and env_class == 'Fans'):
                 environment_data['fans'][sensor_object]['status'] = False
 
             for _, temperature_data in (
@@ -287,83 +315,75 @@ class JunOSDriver(NetworkDriver):
                 if structured_object_data['class'] == 'Temp':
                     # Create a dict for the 'temperature' key
                     try:
-                        environment_data['temperature'][sensor_object] = (
-                            dict())
+                        environment_data['temperature'][sensor_object] = {}
                     except KeyError:
-                        environment_data['temperature'] = dict()
-                        environment_data['temperature'][sensor_object] = (
-                            dict())
+                        environment_data['temperature'] = {}
+                        environment_data['temperature'][sensor_object] = {}
+                    # Check we have a temperature field in this class (See #66)
+                    if structured_object_data['temperature']:
+                        environment_data['temperature'][sensor_object]['temperature'] = \
+                            float(structured_object_data['temperature'])
+                    # Set a default value (False) to the key is_critical and is_alert
+                    environment_data['temperature'][sensor_object]['is_alert'] = False
+                    environment_data['temperature'][sensor_object]['is_critical'] = False
+                    # Check if the working temperature is equal to or higher than alerting threshold
+                    temp = structured_object_data['temperature']
+                    if structured_temperature_data['red-alarm'] <= temp:
+                        environment_data['temperature'][sensor_object]['is_critical'] = True
+                        environment_data['temperature'][sensor_object]['is_alert'] = True
+                    elif structured_temperature_data['yellow-alarm'] <= temp:
+                        environment_data['temperature'][sensor_object]['is_alert'] = True
 
-                    (environment_data['temperature'][sensor_object]
-                                     ['temperature']) = (
-                        float(structured_object_data['temperature']))
-
-                    # Set a default value (False) to the key is_critical
-                    #  and is_alert
-                    (environment_data['temperature'][sensor_object]
-                                     ['is_alert']) = False
-                    (environment_data['temperature'][sensor_object]
-                                     ['is_critical']) = False
-                    # Check if the working temperature is equal to
-                    # or higher than alerting threshold
-                    if (structured_temperature_data['red-alarm'] <=
-                            structured_object_data['temperature']):
-                        (environment_data['temperature'][sensor_object]
-                                         ['is_critical']) = True
-                        (environment_data['temperature'][sensor_object]
-                                         ['is_alert']) = True
-                    elif (structured_temperature_data['yellow-alarm'] <=
-                          structured_object_data['temperature']):
-                        (environment_data['temperature'][sensor_object]
-                                         ['is_alert']) = True
-
-        for routing_engine_object, routing_engine_data in (
-                routing_engine.items()):
-            structured_routing_engine_data = (
-                {k: v for k, v in routing_engine_data})
-
+        for routing_engine_object, routing_engine_data in routing_engine.items():
+            structured_routing_engine_data = {k: v for k, v in routing_engine_data}
             # Create dicts for 'cpu' and 'memory'.
             try:
-                environment_data['cpu'][routing_engine_object] = dict()
-                environment_data['memory'] = dict()
+                environment_data['cpu'][routing_engine_object] = {}
+                environment_data['memory'] = {}
             except KeyError:
-                environment_data['cpu'] = dict()
-                environment_data['cpu'][routing_engine_object] = dict()
-                environment_data['memory'] = dict()
+                environment_data['cpu'] = {}
+                environment_data['cpu'][routing_engine_object] = {}
+                environment_data['memory'] = {}
             # Calculate the CPU usage by using the CPU idle value.
-            environment_data['cpu'][routing_engine_object]['%usage'] = (
-                100.0 - structured_routing_engine_data['cpu-idle'])
-
+            environment_data['cpu'][routing_engine_object]['%usage'] = \
+                100.0 - structured_routing_engine_data['cpu-idle']
             try:
-                environment_data['memory']['available_ram'] = (
-                    int(structured_routing_engine_data['memory-dram-size']))
+                environment_data['memory']['available_ram'] = \
+                    int(structured_routing_engine_data['memory-dram-size'])
             except ValueError:
-                environment_data['memory']['available_ram'] = (
-                    int(''.join(i for i in
-                        structured_routing_engine_data['memory-dram-size']
-                        if i.isdigit())))
+                environment_data['memory']['available_ram'] = \
+                    int(
+                        ''.join(
+                            i for i in structured_routing_engine_data['memory-dram-size']
+                            if i.isdigit()
+                        )
+                    )
             # Junos gives us RAM in %, so calculation has to be made.
-            # Sadly, bacause of this, results are not 100% accurate
-            # to the truth.
-            environment_data['memory']['used_ram'] = (
-                environment_data['memory']['available_ram'] / 100 *
-                structured_routing_engine_data['memory-buffer-utilization'])
-
+            # Sadly, bacause of this, results are not 100% accurate to the truth.
+            environment_data['memory']['used_ram'] = \
+                (environment_data['memory']['available_ram'] / 100 *
+                    structured_routing_engine_data['memory-buffer-utilization'])
         return environment_data
 
     @staticmethod
     def _get_address_family(table):
-        """Function to derive address family from a junos table name
+        """
+        Function to derive address family from a junos table name.
 
         :params table: The name of the routing table
         :returns: address family
         """
         address_family_mapping = {
             'inet': 'ipv4',
-            'inet6': 'ipv6'
+            'inet6': 'ipv6',
+            'inetflow': 'flow'
         }
         family = table.split('.')[-2]
-        return address_family_mapping[family]
+        try:
+            address_family = address_family_mapping[family]
+        except KeyError:
+            address_family = family
+        return address_family
 
     def _parse_route_stats(self, neighbor):
         data = {}
@@ -397,6 +417,7 @@ class JunOSDriver(NetworkDriver):
             return value
 
     def get_bgp_neighbors(self):
+        """Return BGP neighbors details."""
         instances = junos_views.junos_route_instance_table(self.device)
         uptime_table = junos_views.junos_bgp_uptime_table(self.device)
         bgp_neighbors = junos_views.junos_bgp_table(self.device)
@@ -412,20 +433,17 @@ class JunOSDriver(NetworkDriver):
             for neighbor, data in (
                     bgp_neighbors.get(instance=instance).items()):
                 neighbor_data = {k: v for k, v in data}
-                peer_ip = neighbor.split('+')[0]
+                peer_ip = napalm_base.helpers.ip(neighbor.split('+')[0])
                 if 'router_id' not in bgp_neighbor_data[instance_name]:
                     # we only need to set this once
-                    bgp_neighbor_data[instance_name]['router_id'] = (
-                        unicode(neighbor_data['local_id']))
-
-                peer = (
-                    {key: self._parse_value(value)
-                     for key, value in neighbor_data.iteritems()
-                     if key in keys})
-
-                peer['address_family'] = (
-                    self._parse_route_stats(neighbor_data))
-
+                    bgp_neighbor_data[instance_name]['router_id'] = \
+                        unicode(neighbor_data['local_id'])
+                peer = {
+                    key: self._parse_value(value)
+                    for key, value in neighbor_data.iteritems()
+                    if key in keys
+                }
+                peer['address_family'] = self._parse_route_stats(neighbor_data)
                 bgp_neighbor_data[instance_name]['peers'][peer_ip] = peer
             for neighbor, uptime in (
                     uptime_table.get(instance=instance).items()):
@@ -437,32 +455,31 @@ class JunOSDriver(NetworkDriver):
         return bgp_neighbor_data
 
     def get_lldp_neighbors(self):
+        """Return LLDP neighbors details."""
         lldp = junos_views.junos_lldp_table(self.device)
         lldp.get()
 
         result = lldp.items()
 
-        neighbors = dict()
+        neighbors = {}
         for neigh in result:
             if neigh[0] not in neighbors.keys():
-                neighbors[neigh[0]] = list()
-            neighbors[neigh[0]].append(
-                {x[0]: unicode(x[1]) for x in neigh[1]})
+                neighbors[neigh[0]] = []
+            neighbors[neigh[0]].append({x[0]: unicode(x[1]) for x in neigh[1]})
 
         return neighbors
 
     def get_lldp_neighbors_detail(self, interface=''):
-
-        lldp_neighbors = dict()
+        """Detailed view of the LLDP neighbors."""
+        lldp_neighbors = {}
 
         lldp_table = junos_views.junos_lldp_neighbors_detail_table(self.device)
         lldp_table.get()
         interfaces = lldp_table.get().keys()
 
-        old_junos = (
-            self._convert(
-                int, self.device.facts.get(
-                    'version', '0.0').split('.')[0], '0') < 13)
+        old_junos = napalm_base.helpers.convert(
+            int,
+            self.device.facts.get('version', '0.0').split('.')[0], '0') < 13
 
         lldp_table.GET_RPC = 'get-lldp-interface-neighbors'
         if old_junos:
@@ -475,47 +492,40 @@ class JunOSDriver(NetworkDriver):
                 lldp_table.get(interface_device=interface)
             for item in lldp_table:
                 if interface not in lldp_neighbors.keys():
-                    lldp_neighbors[interface] = list()
+                    lldp_neighbors[interface] = []
                 lldp_neighbors[interface].append({
                     'parent_interface': item.parent_interface,
                     'remote_port': item.remote_port,
-                    'remote_chassis_id': item.remote_chassis_id,
-                    'remote_port_description': item.remote_port_description,
+                    'remote_chassis_id': napalm_base.helpers.convert(
+                        napalm_base.helpers.mac,
+                        item.remote_chassis_id,
+                        item.remote_chassis_id
+                    ),
+                    'remote_port_description': napalm_base.helpers.convert(
+                        unicode, item.remote_port_description),
                     'remote_system_name': item.remote_system_name,
-                    'remote_system_description': (
-                        item.remote_system_description),
+                    'remote_system_description': item.remote_system_description,
                     'remote_system_capab': item.remote_system_capab,
-                    'remote_system_enable_capab': (
-                        item.remote_system_enable_capab)
+                    'remote_system_enable_capab': item.remote_system_enable_capab
                 })
 
         return lldp_neighbors
 
     def cli(self, commands=None):
-
-        cli_output = dict()
+        """Execute raw CLI commands and returns their output."""
+        cli_output = {}
 
         if not isinstance(commands, list):
             raise TypeError('Please enter a valid list of commands!')
 
         for command in commands:
-            try:
-                cli_output[unicode(command)] = (
-                    unicode(self.device.cli(command)))
-            except Exception as e:
-                cli_output[unicode(command)] = (
-                    'Unable to execute command "{cmd}": {err}'.format(
-                        cmd=command,
-                        err=e
-                    ))
-                raise CommandErrorException(str(cli_output))
+            cli_output[unicode(command)] = unicode(self.device.cli(command))
 
         return cli_output
 
     def get_bgp_config(self, group='', neighbor=''):
-
-        # for deep dictionary update
-        def update_dict(d, u):
+        """Return BGP configuration."""
+        def update_dict(d, u):  # for deep dictionary update
             for k, v in u.iteritems():
                 if isinstance(d, collections.Mapping):
                     if isinstance(v, collections.Mapping):
@@ -528,11 +538,10 @@ class JunOSDriver(NetworkDriver):
             return d
 
         def build_prefix_limit(**args):
-
-            """This helper converts a dictionary into nested dictionaries:
+            """
+            Transform the elements of a dictionary into nested dictionaries.
 
             Example:
-
                 {
                     'inet_unicast_limit': 500,
                     'inet_unicast_teardown_threshold': 95,
@@ -553,8 +562,7 @@ class JunOSDriver(NetworkDriver):
                     }
                 }
             """
-
-            prefix_limit = dict()
+            prefix_limit = {}
 
             for key, value in args.iteritems():
                 key_levels = key.split('_')
@@ -595,7 +603,6 @@ class JunOSDriver(NetworkDriver):
         }
 
         _PEER_FIELDS_DATATYPE_MAP_ = {
-            'group': unicode,
             'authentication_key': unicode,
             'route_reflector_client': bool,
             'nhs': bool
@@ -622,7 +629,7 @@ class JunOSDriver(NetworkDriver):
             list: []
         }
 
-        bgp_config = dict()
+        bgp_config = {}
 
         if group:
             bgp = junos_views.junos_bgp_config_group_table(self.device)
@@ -630,62 +637,11 @@ class JunOSDriver(NetworkDriver):
         else:
             bgp = junos_views.junos_bgp_config_table(self.device)
             bgp.get()
-            # if no group is set, no neighbor should be set either
-            neighbor = ''
+            neighbor = ''  # if no group is set, no neighbor should be set either
         bgp_items = bgp.items()
 
-        peers = junos_views.junos_bgp_config_peers_table(self.device)
-        # unfortunately cannot add filters for group name of neighbor address
-        peers.get()
-        peers_items = peers.items()
-
-        bgp_neighbors = dict()
-
-        for bgp_group_neighbor in peers_items:
-            bgp_peer_address = bgp_group_neighbor[0]
-            if neighbor and bgp_peer_address != neighbor:
-                # if filters applied, jump over all other neighbors
-                continue
-            bgp_group_details = bgp_group_neighbor[1]
-            bgp_peer_details = {
-                field: _DATATYPE_DEFAULT_.get(datatype)
-                for field, datatype in _PEER_FIELDS_DATATYPE_MAP_.iteritems()
-                if '_prefix_limit' not in field
-            }
-            for elem in bgp_group_details:
-                temp = '_prefix_limit' not in elem[0] and elem[1] is not None
-                if not temp:
-                    continue
-                datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
-                default = _DATATYPE_DEFAULT_.get(datatype)
-                key = elem[0]
-                value = elem[1]
-                if key in ['export_policy', 'import_policy']:
-                    if isinstance(value, list):
-                        value = ' '.join(value)
-                bgp_peer_details.update({
-                    key: self._convert(datatype, value, default)
-                })
-            prefix_limit_fields = dict()
-            for elem in bgp_group_details:
-                if '_prefix_limit' in elem[0] and elem[1] is not None:
-                    datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
-                    default = _DATATYPE_DEFAULT_.get(datatype)
-                    prefix_limit_fields.update({
-                        elem[0].replace('_prefix_limit', ''): (
-                            self._convert(datatype, elem[1], default))
-                    })
-            bgp_peer_details['prefix_limit'] = (
-                build_prefix_limit(**prefix_limit_fields))
-            # and all these things only because PyEZ cannto convert to
-            # a specifc datatype when retrieving config...
-            group = bgp_peer_details.pop('group')
-            if group not in bgp_neighbors.keys():
-                bgp_neighbors[group] = dict()
-            bgp_neighbors[group][bgp_peer_address] = bgp_peer_details
-            if neighbor and bgp_peer_address == neighbor:
-                # found the desired neighbor
-                break
+        if neighbor:
+            neighbor_ip = napalm_base.helpers.ip(neighbor)
 
         for bgp_group in bgp_items:
             bgp_group_name = bgp_group[0]
@@ -706,28 +662,71 @@ class JunOSDriver(NetworkDriver):
                 if key in ['export_policy', 'import_policy']:
                     if isinstance(value, list):
                         value = ' '.join(value)
+                if key == 'local_address':
+                    value = napalm_base.helpers.convert(
+                        napalm_base.helpers.ip, value, value)
+                if key == 'neighbors':
+                    bgp_group_peers = value
+                    continue
                 bgp_config[bgp_group_name].update({
-                    key: self._convert(datatype, value, default)
+                    key: napalm_base.helpers.convert(datatype, value, default)
                 })
-            prefix_limit_fields = dict()
+            prefix_limit_fields = {}
             for elem in bgp_group_details:
                 if '_prefix_limit' in elem[0] and elem[1] is not None:
                     datatype = _GROUP_FIELDS_DATATYPE_MAP_.get(elem[0])
                     default = _DATATYPE_DEFAULT_.get(datatype)
                     prefix_limit_fields.update({
-                        elem[0].replace('_prefix_limit', ''): (
-                            self._convert(datatype, elem[1], default))
+                        elem[0].replace('_prefix_limit', ''):
+                            napalm_base.helpers.convert(datatype, elem[1], default)
                     })
-            bgp_config[bgp_group_name]['prefix_limit'] = (
-                build_prefix_limit(**prefix_limit_fields))
+            bgp_config[bgp_group_name]['prefix_limit'] = build_prefix_limit(**prefix_limit_fields)
 
-            bgp_config[bgp_group_name]['neighbors'] = (
-                bgp_neighbors.get(bgp_group_name, {}))
+            bgp_config[bgp_group_name]['neighbors'] = {}
+            for bgp_group_neighbor in bgp_group_peers.items():
+                bgp_peer_address = napalm_base.helpers.ip(bgp_group_neighbor[0])
+                if neighbor and bgp_peer_address != neighbor:
+                    continue  # if filters applied, jump over all other neighbors
+                bgp_group_details = bgp_group_neighbor[1]
+                bgp_peer_details = {
+                    field: _DATATYPE_DEFAULT_.get(datatype)
+                    for field, datatype in _PEER_FIELDS_DATATYPE_MAP_.iteritems()
+                    if '_prefix_limit' not in field
+                }
+                for elem in bgp_group_details:
+                    if not('_prefix_limit' not in elem[0] and elem[1] is not None):
+                        continue
+                    datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
+                    default = _DATATYPE_DEFAULT_.get(datatype)
+                    key = elem[0]
+                    value = elem[1]
+                    if key in ['export_policy', 'import_policy']:
+                        if isinstance(value, list):
+                            value = ' '.join(value)
+                    if key == 'local_address':
+                        value = napalm_base.helpers.convert(
+                            napalm_base.helpers.ip, value, value)
+                    bgp_peer_details.update({
+                        key: napalm_base.helpers.convert(datatype, value, default)
+                    })
+                prefix_limit_fields = {}
+                for elem in bgp_group_details:
+                    if '_prefix_limit' in elem[0] and elem[1] is not None:
+                        datatype = _PEER_FIELDS_DATATYPE_MAP_.get(elem[0])
+                        default = _DATATYPE_DEFAULT_.get(datatype)
+                        prefix_limit_fields.update({
+                            elem[0].replace('_prefix_limit', ''):
+                                napalm_base.helpers.convert(datatype, elem[1], default)
+                        })
+                bgp_peer_details['prefix_limit'] = build_prefix_limit(**prefix_limit_fields)
+                bgp_config[bgp_group_name]['neighbors'][bgp_peer_address] = bgp_peer_details
+                if neighbor and bgp_peer_address == neighbor_ip:
+                    break  # found the desired neighbor
 
         return bgp_config
 
     def get_bgp_neighbors_detail(self, neighbor_address=''):
-
+        """Detailed view of the BGP neighbors operational data."""
         bgp_neighbors = {}
 
         bgp_neighbors_table = (
@@ -807,7 +806,8 @@ class JunOSDriver(NetworkDriver):
             four_byte_as = neighbor_details.pop('4byte_as', 0)
             local_address = neighbor_details.pop('local_address', '')
             local_details = local_address.split('+')
-            neighbor_details['local_address'] = unicode(local_details[0])
+            neighbor_details['local_address'] = napalm_base.helpers.convert(
+                napalm_base.helpers.ip, local_details[0], local_details[0])
             if len(local_details) == 2:
                 neighbor_details['local_port'] = int(local_details[1])
             else:
@@ -816,7 +816,8 @@ class JunOSDriver(NetworkDriver):
                 remote_as != four_byte_as)
             peer_address = neighbor_details.pop('peer_address', '')
             remote_details = peer_address.split('+')
-            neighbor_details['remote_address'] = unicode(remote_details[0])
+            neighbor_details['remote_address'] = napalm_base.helpers.convert(
+                napalm_base.helpers.ip, remote_details[0], remote_details[0])
             if len(remote_details) == 2:
                 neighbor_details['remote_port'] = int(remote_details[1])
             else:
@@ -839,7 +840,7 @@ class JunOSDriver(NetworkDriver):
         return bgp_neighbors
 
     def get_arp_table(self):
-
+        """Return the ARP table."""
         # could use ArpTable
         # from jnpr.junos.op.phyport import ArpTable
         # and simply use it
@@ -849,7 +850,7 @@ class JunOSDriver(NetworkDriver):
         #   - group by VLAN ID
         #   - hostname & TTE fields as well
 
-        arp_table = list()
+        arp_table = []
 
         arp_table_raw = junos_views.junos_arp_table(self.device)
         arp_table_raw.get()
@@ -859,15 +860,14 @@ class JunOSDriver(NetworkDriver):
             arp_entry = {
                 elem[0]: elem[1] for elem in arp_table_entry[1]
             }
-            tte = arp_entry.pop('tte')
-            arp_entry['age'] = tte
-            # must compute age based on TTE
+            arp_entry['mac'] = napalm_base.helpers.mac(arp_entry.get('mac'))
+            arp_entry['ip'] = napalm_base.helpers.ip(arp_entry.get('ip'))
             arp_table.append(arp_entry)
 
         return arp_table
 
     def get_ntp_peers(self):
-
+        """Return the NTP peers configured on the device."""
         ntp_table = junos_views.junos_ntp_peers_config_table(self.device)
         ntp_table.get()
 
@@ -876,10 +876,10 @@ class JunOSDriver(NetworkDriver):
         if not ntp_peers:
             return {}
 
-        return {unicode(peer[0]): {} for peer in ntp_peers}
+        return {napalm_base.helpers.ip(peer[0]): {} for peer in ntp_peers}
 
     def get_ntp_servers(self):
-
+        """Return the NTP servers configured on the device."""
         ntp_table = junos_views.junos_ntp_servers_config_table(self.device)
         ntp_table.get()
 
@@ -888,15 +888,15 @@ class JunOSDriver(NetworkDriver):
         if not ntp_servers:
             return {}
 
-        return {unicode(server[0]): {} for server in ntp_servers}
+        return {napalm_base.helpers.ip(server[0]): {} for server in ntp_servers}
 
     def get_ntp_stats(self):
-
+        """Return NTP stats (associations)."""
         # NTP Peers does not have XML RPC defined
         # thus we need to retrieve raw text and parse...
         # :(
 
-        ntp_stats = list()
+        ntp_stats = []
 
         REGEX = (
             r'^\s?(\+|\*|x|-)?([a-zA-Z0-9\.+-:]+)'
@@ -909,16 +909,14 @@ class JunOSDriver(NetworkDriver):
         ntp_assoc_output = self.device.cli('show ntp associations no-resolve')
         ntp_assoc_output_lines = ntp_assoc_output.splitlines()
 
-        # except last line
-        for ntp_assoc_output_line in ntp_assoc_output_lines[3:]:
+        for ntp_assoc_output_line in ntp_assoc_output_lines[3:]:  # except last line
             line_search = re.search(REGEX, ntp_assoc_output_line, re.I)
             if not line_search:
-                # pattern not found
-                continue
+                continue  # pattern not found
             line_groups = line_search.groups()
             try:
                 ntp_stats.append({
-                    'remote': unicode(line_groups[1]),
+                    'remote': napalm_base.helpers.ip(line_groups[1]),
                     'synchronized': (line_groups[0] == '*'),
                     'referenceid': unicode(line_groups[2]),
                     'stratum': int(line_groups[3]),
@@ -931,14 +929,13 @@ class JunOSDriver(NetworkDriver):
                     'jitter': float(line_groups[10])
                 })
             except Exception:
-                # jump to next line
-                continue
+                continue  # jump to next line
 
         return ntp_stats
 
     def get_interfaces_ip(self):
-
-        interfaces_ip = dict()
+        """Return the configured IP addresses."""
+        interfaces_ip = {}
 
         interface_table = junos_views.junos_ip_interfaces_table(self.device)
         interface_table.get()
@@ -962,27 +959,23 @@ class JunOSDriver(NetworkDriver):
         # j_var = 0
 
         for interface_details in interface_table_items:
-            try:
-                ip_address = interface_details[0]
-                address = unicode(ip_address.split('/')[0])
-                prefix = self._convert(int, ip_address.split('/')[-1], 0)
-                interface = unicode(interface_details[1][0][1])
-                family_raw = interface_details[1][1][1]
-                family = _FAMILY_VMAP_.get(family_raw)
-                if not family:
-                    # i_var += 1
-                    continue
-                if interface not in interfaces_ip.keys():
-                    interfaces_ip[interface] = dict()
-                if family not in interfaces_ip[interface].keys():
-                    interfaces_ip[interface][family] = dict()
-                if address not in interfaces_ip[interface][family].keys():
-                    interfaces_ip[interface][family][address] = dict()
-                (interfaces_ip[interface][family][address]
-                              [u'prefix_length']) = prefix
-            except Exception:
-                # j_var += 1
+            ip_network = interface_details[0]
+            ip_address = ip_network.split('/')[0]
+            address = napalm_base.helpers.convert(
+                napalm_base.helpers.ip, ip_address, ip_address)
+            prefix = napalm_base.helpers.convert(int, ip_network.split('/')[-1], 0)
+            interface = unicode(interface_details[1][0][1])
+            family_raw = interface_details[1][1][1]
+            family = _FAMILY_VMAP_.get(family_raw)
+            if not family:
                 continue
+            if interface not in interfaces_ip.keys():
+                interfaces_ip[interface] = {}
+            if family not in interfaces_ip[interface].keys():
+                interfaces_ip[interface][family] = {}
+            if address not in interfaces_ip[interface][family].keys():
+                interfaces_ip[interface][family][address] = {}
+            interfaces_ip[interface][family][address][u'prefix_length'] = prefix
 
         # TODO(mierdin): remove this, debug information
         # if not interfaces_ip:
@@ -994,7 +987,7 @@ class JunOSDriver(NetworkDriver):
         return interfaces_ip
 
     def get_mac_address_table(self):
-
+        """Return the MAC address table."""
         mac_address_table = []
 
         # for EX & QFX devices
@@ -1021,19 +1014,21 @@ class JunOSDriver(NetworkDriver):
             mac_entry.update(
                 {elem[0]: elem[1] for elem in mac_table_entry[1]}
             )
+            mac = mac_entry.get('mac')
+            mac_entry['mac'] = napalm_base.helpers.mac(mac)
             mac_address_table.append(mac_entry)
 
         return mac_address_table
 
-    def get_route_to(self, destination='', protocol=''):
-
+    def get_route_to(self, destination=None, protocol=None):
+        """Return route details to a specific destination, learned from a certain protocol."""
         routes = {}
 
-        if not isinstance(destination, str):
+        if not isinstance(destination, py23_compat.string_types):
             raise TypeError('Please specify a valid destination!')
 
-        if ((not isinstance(protocol, str)) or
-                (protocol.lower() not in ['static', 'bgp', 'isis'])):
+        if not isinstance(protocol, py23_compat.string_types) or \
+           protocol.lower() not in ('static', 'bgp', 'isis'):
             raise TypeError("Protocol not supported: {protocol}.".format(
                 protocol=protocol
             ))
@@ -1054,14 +1049,14 @@ class JunOSDriver(NetworkDriver):
             'preference',
             'inactive_reason',
             'routing_table'
-        ]
+        ]  # identifies the list of fileds common for all protocols
 
         # fields expected to have boolean values
         _BOOLEAN_FIELDS_ = [
             'current_active',
             'selected_next_hop',
             'last_active'
-        ]
+        ]  # fields expected to have boolean values
 
         _PROTOCOL_SPECIFIC_FIELDS_ = {
             'bgp': [
@@ -1079,6 +1074,8 @@ class JunOSDriver(NetworkDriver):
                 'level',
                 'metric',
                 'local_as'
+            ],
+            'static': [  # nothing specific to static routes
             ]
         }
 
@@ -1094,19 +1091,19 @@ class JunOSDriver(NetworkDriver):
             # in case the destination is too generic (e.g.: 10/8)
             # will take very very long to determine all routes and
             # moreover will return a huge list
-            raise CommandTimeoutException('Too many routes returned!'
-                                          ' Please try with a longer prefix!')
-        except Exception as e:
-            raise CommandErrorException(
-                'Cannot retrieve routes! Reason: {err}'.format(err=e))
+            raise CommandTimeoutException(
+                'Too many routes returned! Please try with a longer prefix!'
+            )
+        except Exception as err:
+            raise CommandErrorException('Cannot retrieve routes! Reason: {err}'.format(err=err))
 
         routes_items = routes_table.items()
 
         for route in routes_items:
-            d = dict()
+            d = {}
             next_hop = route[0]
             d = {elem[0]: elem[1] for elem in route[1]}
-            destination = d.pop('destination', '')
+            destination = napalm_base.helpers.ip(d.pop('destination', ''))
             prefix_length = d.pop('prefix_length', 32)
             destination = '{d}/{p}'.format(
                 d=destination,
@@ -1122,6 +1119,10 @@ class JunOSDriver(NetworkDriver):
 
             as_path = d.get('as_path')
             if as_path is not None:
+                d['as_path'] = as_path.split(' I ')[0]\
+                                      .replace('AS path:', '')\
+                                      .replace('I', '')\
+                                      .strip()
                 # to be sure that contains only AS Numbers
                 d['as_path'] = (
                     (as_path.split(' I ')[0].replace('AS path:', '').
@@ -1135,10 +1136,11 @@ class JunOSDriver(NetworkDriver):
             d_keys = d.keys()
             # fields that are not in _COMMON_PROTOCOL_FIELDS_ are
             # supposed to be protocol specific
-            all_protocol_attributes = (
-                {key: d.pop(key)
-                 for key in d_keys if key not in _COMMON_PROTOCOL_FIELDS_})
-
+            all_protocol_attributes = {
+                key: d.pop(key)
+                for key in d_keys
+                if key not in _COMMON_PROTOCOL_FIELDS_
+            }
             protocol_attributes = {
                 key: value
                 for key, value in all_protocol_attributes.iteritems()
@@ -1146,14 +1148,14 @@ class JunOSDriver(NetworkDriver):
             }
             d['protocol_attributes'] = protocol_attributes
             if destination not in routes.keys():
-                routes[destination] = list()
+                routes[destination] = []
             routes[destination].append(d)
 
         return routes
 
     def get_snmp_information(self):
-
-        snmp_information = dict()
+        """Return the SNMP configuration."""
+        snmp_information = {}
 
         _AUTHORIZATION_MODE_MAP_ = {
             'read-only': u'ro',
@@ -1167,31 +1169,33 @@ class JunOSDriver(NetworkDriver):
         if not snmp_items:
             return snmp_information
 
-        communities = list()
+        communities = []
         for snmp_config_out in snmp_items:
-
-            # TODO(mierdin): Someone needs to use the below line.
-            # Commenting out for now.
-            # community_name = snmp_config_out[0]
-
             community_details = snmp_config_out[1]
             communities.append({
                 c[0]: c[1] for c in community_details
             })
 
         snmp_information = {
-            'contact': self._convert(unicode, communities[0].get('contact')),
-            'location': self._convert(unicode,
-                                      communities[0].get('location')),
-            'chassis_id': self._convert(unicode,
-                                        communities[0].get('chassis')),
+            'contact': napalm_base.helpers.convert(
+                unicode, communities[0].get('contact')
+            ),
+            'location': napalm_base.helpers.convert(
+                unicode, communities[0].get('location')
+            ),
+            'chassis_id': napalm_base.helpers.convert(
+                unicode, communities[0].get('chassis')
+            ),
             'community': {}
         }
 
         for snmp_entry in communities:
-            name = self._convert(unicode, snmp_entry.get('name'))
-            authorization = self._convert(unicode,
-                                          snmp_entry.get('authorization'))
+            name = napalm_base.helpers.convert(
+                unicode, snmp_entry.get('name')
+            )
+            authorization = napalm_base.helpers.convert(
+                unicode, snmp_entry.get('authorization')
+            )
             snmp_information['community'][name] = {
                 'mode': _AUTHORIZATION_MODE_MAP_.get(authorization, u''),
                 'acl': u''
@@ -1200,8 +1204,8 @@ class JunOSDriver(NetworkDriver):
         return snmp_information
 
     def get_probes_config(self):
-
-        probes = dict()
+        """Return the configuration of the RPM probes."""
+        probes = {}
 
         probes_table = junos_views.junos_rpm_probes_config_table(self.device)
         probes_table.get()
@@ -1212,23 +1216,27 @@ class JunOSDriver(NetworkDriver):
             test_details = {
                 p[0]: p[1] for p in probe_test[1]
             }
-            probe_name = self._convert(unicode,
-                                       test_details.pop('probe_name'))
-            target = self._convert(unicode, test_details.pop('target', ''))
-            test_interval = self._convert(int,
-                                          test_details.pop('test_interval',
-                                                           '0'))
+            probe_name = napalm_base.helpers.convert(
+                unicode, test_details.pop('probe_name')
+            )
+            target = napalm_base.helpers.convert(
+                unicode, test_details.pop('target', '')
+            )
+            test_interval = napalm_base.helpers.convert(
+                int, test_details.pop('test_interval', '0')
+            )
+            probe_count = napalm_base.helpers.convert(
+                int, test_details.pop('probe_count', '0')
+            )
+            probe_type = napalm_base.helpers.convert(
+                unicode, test_details.pop('probe_type', '')
+            )
+            source = napalm_base.helpers.convert(
+                unicode, test_details.pop('source_address', '')
+            )
 
-            probe_count = self._convert(int,
-                                        test_details.pop('probe_count', '0'))
-
-            probe_type = self._convert(unicode,
-                                       test_details.pop('probe_type', ''))
-
-            source = self._convert(unicode,
-                                   test_details.pop('source_address', ''))
             if probe_name not in probes.keys():
-                probes[probe_name] = dict()
+                probes[probe_name] = {}
             probes[probe_name][test_name] = {
                 'probe_type': probe_type,
                 'target': target,
@@ -1240,8 +1248,8 @@ class JunOSDriver(NetworkDriver):
         return probes
 
     def get_probes_results(self):
-
-        probes_results = dict()
+        """Return the results of the RPM probes."""
+        probes_results = {}
 
         probes_results_table = (
             junos_views.junos_rpm_probes_results_table(self.device))
@@ -1253,23 +1261,25 @@ class JunOSDriver(NetworkDriver):
             test_results = {
                 p[0]: p[1] for p in probe_result[1]
             }
+            test_results['last_test_loss'] = napalm_base.helpers.convert(
+                int, test_results.pop('last_test_loss'), 0)
             for test_param_name, test_param_value in test_results.iteritems():
                 if isinstance(test_param_value, float):
-                    # convert from useconds to mseconds
                     test_results[test_param_name] = test_param_value * 1e-3
+                    # convert from useconds to mseconds
             test_name = test_results.pop('test_name', '')
             source = test_results.get('source', u'')
             if source is None:
                 test_results['source'] = u''
             if probe_name not in probes_results.keys():
-                probes_results[probe_name] = dict()
+                probes_results[probe_name] = {}
             probes_results[probe_name][test_name] = test_results
 
         return probes_results
 
     def traceroute(self, destination, source='', ttl=0, timeout=0):
-
-        traceroute_result = dict()
+        """Execute traceroute and return results."""
+        traceroute_result = {}
 
         # calling form RPC does not work properly :(
         # but defined junos_route_instance_table just in case
@@ -1293,46 +1303,34 @@ class JunOSDriver(NetworkDriver):
                 wait=wait_str))
 
         traceroute_rpc = E('command', traceroute_command)
-        # make direct RPC call via NETCONF
         rpc_reply = self.device._conn.rpc(traceroute_rpc)._NCElement__doc
+        # make direct RPC call via NETCONF
         traceroute_results = rpc_reply.find('.//traceroute-results')
 
-        # TODO(mierdin): Someone needs to use the below line.
-        # Commenting out for now.
-        # traceroute_success = traceroute_results.find('traceroute-success')
-        traceroute_failure = self._find_txt(traceroute_results,
-                                            'traceroute-failure', '')
-        error_message = self._find_txt(traceroute_results,
-                                       'rpc-error/error-message', '')
-        # TODO(mierdin): Someone needs to use the below line.
-        # Commenting out for now.
-        # error = ''
+        traceroute_failure = napalm_base.helpers.find_txt(
+            traceroute_results, 'traceroute-failure', '')
+        error_message = napalm_base.helpers.find_txt(
+            traceroute_results, 'rpc-error/error-message', '')
 
         if traceroute_failure and error_message:
             return {'error': '{}: {}'.format(traceroute_failure,
                                              error_message)}
 
-        traceroute_result['success'] = dict()
+        traceroute_result['success'] = {}
         for hop in traceroute_results.findall('hop'):
-            ttl_value = self._convert(int,
-                                      self._find_txt(hop, 'ttl-value'), 1)
+            ttl_value = napalm_base.helpers.convert(
+                int, napalm_base.helpers.find_txt(hop, 'ttl-value'), 1)
             if ttl_value not in traceroute_result['success']:
                 traceroute_result['success'][ttl_value] = {'probes': {}}
             for probe in hop.findall('probe-result'):
-                probe_index = self._convert(int,
-                                            self._find_txt(probe,
-                                                           'probe-index'), 0)
-                ip_address = unicode(
-                    self._find_txt(probe, 'ip-address', u'*'))
-                host_name = unicode(
-                    self._find_txt(probe, 'host-name', u'*'))
-                # ms
-                rtt = (
-                    (self._convert(float,
-                                   self._find_txt(probe, 'rtt'), 0) * 1e-3))
-
-                (traceroute_result['success'][ttl_value]
-                                  ['probes'][probe_index]) = {
+                probe_index = napalm_base.helpers.convert(
+                    int, napalm_base.helpers.find_txt(probe, 'probe-index'), 0)
+                ip_address = napalm_base.helpers.convert(
+                    napalm_base.helpers.ip, napalm_base.helpers.find_txt(probe, 'ip-address'), u'*')
+                host_name = unicode(napalm_base.helpers.find_txt(probe, 'host-name', u'*'))
+                rtt = napalm_base.helpers.convert(
+                    float, napalm_base.helpers.find_txt(probe, 'rtt'), 0) * 1e-3  # ms
+                traceroute_result['success'][ttl_value]['probes'][probe_index] = {
                     'ip_address': ip_address,
                     'host_name': host_name,
                     'rtt': rtt
@@ -1341,8 +1339,8 @@ class JunOSDriver(NetworkDriver):
         return traceroute_result
 
     def get_users(self):
-
-        users = dict()
+        """Return the configuration of the users."""
+        users = {}
 
         _JUNOS_CLASS_CISCO_PRIVILEGE_LEVEL_MAP = {
             'super-user': 15,
@@ -1369,6 +1367,10 @@ class JunOSDriver(NetworkDriver):
                 d[0]: d[1] for d in user_entry[1] if d[1]
             })
             user_class = user_details.pop('class', '')
+            user_details = {
+                key: py23_compat.text_type(user_details[key])
+                for key in user_details.keys()
+            }
             level = _JUNOS_CLASS_CISCO_PRIVILEGE_LEVEL_MAP.get(user_class, 0)
             user_details.update({
                 'level': level
@@ -1383,7 +1385,7 @@ class JunOSDriver(NetworkDriver):
         return users
 
     def get_optics(self):
-
+        """Return optics information."""
         optics_table = junos_views.junos_intf_optics_table(self.device)
         optics_table.get()
         optics_items = optics_table.items()
@@ -1391,9 +1393,10 @@ class JunOSDriver(NetworkDriver):
         # Formatting data into return data structure
         optics_detail = {}
         for intf_optic_item in optics_items:
+            interface_name = py23_compat.text_type(intf_optic_item[0])
             optics = dict(intf_optic_item[1])
-            if intf_optic_item[0] not in optics_detail:
-                optics_detail[intf_optic_item[0]] = {}
+            if interface_name not in optics_detail:
+                optics_detail[interface_name] = {}
 
             # Defaulting avg, min, max values to 0.0 since device does not
             # return these values
@@ -1433,6 +1436,30 @@ class JunOSDriver(NetworkDriver):
                     }]
                 }
             }
-            optics_detail[intf_optic_item[0]] = intf_optics
+
+            optics_detail[interface_name] = intf_optics
 
         return optics_detail
+
+    def get_config(self, retrieve='all'):
+        rv = {
+            'startup': '',
+            'running': '',
+            'candidate': ''
+        }
+
+        options = {
+            'format': 'text',
+            'database': 'candidate'
+        }
+
+        if retrieve in ('candidate', 'all'):
+            config = self.device.rpc.get_config(filter_xml=None, options=options)
+            rv['candidate'] = py23_compat.text_type(config.text.encode('ascii', 'replace'))
+
+        if retrieve in ('running', 'all'):
+            options['database'] = 'committed'
+            config = self.device.rpc.get_config(filter_xml=None, options=options)
+            rv['running'] = py23_compat.text_type(config.text.encode('ascii', 'replace'))
+
+        return rv

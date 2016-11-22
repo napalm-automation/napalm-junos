@@ -13,4 +13,14 @@
 # the License.
 
 """napalm_junos package."""
-from napalm_junos.junos import JunOSDriver  # noqa
+
+# Import stdlib
+import pkg_resources
+
+# Import local modules
+from junos import JunOSDriver  # noqa
+
+try:
+    __version__ = pkg_resources.get_distribution('napalm-junos').version
+except pkg_resources.DistributionNotFound:
+    __version__ = "Not installed"

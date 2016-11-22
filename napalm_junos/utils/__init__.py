@@ -1,2 +1,1 @@
-# TODO(unknown) move utils folder inside napalm
-pass
+# -*- coding: utf-8 -*-

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2015 Spotify AB. All rights reserved.
 #
 # The contents of this file are licensed under the Apache License, Version 2.0
@@ -45,8 +46,11 @@ class TestConfigJunOSDriver(unittest.TestCase, TestConfigNetworkDriver):
         password = 'vagrant123'
         cls.vendor = 'junos'
 
-        optional_args = {'port': 12203}
-        cls.device = JunOSDriver(hostname, username, password, timeout=60,
+        optional_args = {'port': 12203, }
+        cls.device = JunOSDriver(hostname,
+                                 username,
+                                 password,
+                                 timeout=60,
                                  optional_args=optional_args)
         cls.device.open()
 
@@ -108,10 +112,7 @@ class FakeJunOSDevice(object):
             'personality': 'SRX_BRANCH'
         }
 
-    @staticmethod
-    def read_txt_file(filename):
-        """Read text data file."""
-
+    def read_txt_file(self, filename):
         with open(filename) as data_file:
             return data_file.read()
 
@@ -119,8 +120,9 @@ class FakeJunOSDevice(object):
         """Mimic CLI commands from text data file."""
 
         return self.read_txt_file(
-            ('napalm_junos/tests/unit/junos/mock_data/{parsed_command}.txt'
-             .format(parsed_command=command.replace(' ', '_')))
+            'junos/mock_data/{parsed_command}.txt'.format(
+                parsed_command=command.replace(' ', '_')
+            )
         )
 
 
@@ -140,14 +142,10 @@ class FakeRPCObject(object):
         instance = rpc_args.pop('instance', '')
 
         xml_string = self._device.read_txt_file(
-            'napalm_junos/tests/unit/junos/mock_data/{}{}.txt'.format(
-                self.item, instance
-            )
-        )
+            'junos/mock_data/{}{}.txt'.format(self.item, instance))
         return lxml.etree.fromstring(xml_string)
 
-    def get_config(self, get_cmd='', options=None):
-        """Mimic get_config method of RPC object."""
+    def get_config(self, get_cmd=None, filter_xml=None, options={}):
 
         # get_cmd is an XML tree that requests a specific part of the config
         # E.g.:
@@ -162,12 +160,22 @@ class FakeRPCObject(object):
         if options is None:
             options = {}
 
-        get_cmd_str = lxml.etree.tostring(get_cmd)
-        filename = (get_cmd_str.replace('<', '_').replace('>', '_')
-                    .replace('/', '_').replace('\n', '').replace(' ', ''))
+        if get_cmd is not None:
+            get_cmd_str = lxml.etree.tostring(get_cmd)
+            filename = get_cmd_str.replace('<', '_')\
+                                  .replace('>', '_')\
+                                  .replace('/', '_')\
+                                  .replace('\n', '')\
+                                  .replace(' ', '')
+
+        # no get_cmd means it should mock the eznc get_config
+        else:
+            filename = 'get_config__' + '__'.join(
+                ['{0}_{1}'.format(k, v) for k, v in options.items()]
+            )
 
         xml_string = self._device.read_txt_file(
-            'napalm_junos/tests/unit/junos/mock_data/{filename}.txt'.format(
+            'junos/mock_data/{filename}.txt'.format(
                 filename=filename[0:150]
             )
         )

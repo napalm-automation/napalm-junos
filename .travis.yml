@@ -4,8 +4,10 @@ python:
 install:
 - pip install -r requirements.txt
 - pip install tox
-- pip install .
-- pip install -e git+https://github.com/napalm-automation/napalm-base.git@develop#egg=napalm-base
+
+# TODO (mierdin): not needed with Tox
+# - pip install -r requirements-dev.txt
+# - pip install .
 deploy:
   provider: pypi
   user: dbarroso
@@ -18,3 +20,8 @@ script:
 - tox -epep8
 - tox -epy27
 # - tod -ecover   # Not currently working
+
+# TODO (mierdin): can/should these be run in Tox?
+  # - py.test --cov-report= --cov=napalm_junos test/
+  # - pylama .
+after_success: coveralls

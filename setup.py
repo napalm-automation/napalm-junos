@@ -39,10 +39,10 @@ setup(
     setup_requires=['pbr>=1.8'],
     pbr=True,
     name="napalm-junos",
-    version="0.2.1",
+    version="0.4.4",
     packages=find_packages(),
-    author="David Barroso",
-    author_email="dbarrosop@dravetech.com",
+    author="David Barroso, Mircea Ulinic",
+    author_email="dbarrosop@dravetech.com, mircea@cloudflare.com",
     description=("Network Automation and Programmability Abstraction "
                  "Layer with Multivendor support"),
     classifiers=[
