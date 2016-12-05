@@ -44,9 +44,10 @@ from napalm_base.exceptions import CommandTimeoutException
 
 # import local modules
 from napalm_junos.utils import junos_views
+from napalm_junos.globals import JunOSGlobals
 
 
-class JunOSDriver(NetworkDriver):
+class JunOSDriver(NetworkDriver, JunOSGlobals):
     """JunOSDriver class - inherits NetworkDriver from napalm_base."""
 
     def __init__(self, hostname, username, password, timeout=60, optional_args=None):
@@ -1241,27 +1242,13 @@ class JunOSDriver(NetworkDriver):
         """Return the configuration of the users."""
         users = {}
 
-        _JUNOS_CLASS_CISCO_PRIVILEGE_LEVEL_MAP = {
-            'super-user': 15,
-            'superuser': 15,
-            'operator': 5,
-            'read-only': 1,
-            'unauthorized': 0
-        }
-
-        _DEFAULT_USER_DETAILS = {
-            'level': 0,
-            'password': '',
-            'sshkeys': []
-        }
-
         users_table = junos_views.junos_users_table(self.device)
         users_table.get()
         users_items = users_table.items()
 
         for user_entry in users_items:
             username = user_entry[0]
-            user_details = _DEFAULT_USER_DETAILS.copy()
+            user_details = self._DEFAULT_USER_DETAILS.copy()
             user_details.update({
                 d[0]: d[1] for d in user_entry[1] if d[1]
             })
@@ -1270,7 +1257,7 @@ class JunOSDriver(NetworkDriver):
                 key: py23_compat.text_type(user_details[key])
                 for key in user_details.keys()
             }
-            level = _JUNOS_CLASS_CISCO_PRIVILEGE_LEVEL_MAP.get(user_class, 0)
+            level = self._JUNOS_CLASS_CISCO_PRIVILEGE_LEVEL_MAP.get(user_class, 0)
             user_details.update({
                 'level': level
             })
