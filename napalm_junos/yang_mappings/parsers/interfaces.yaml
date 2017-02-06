@@ -1,0 +1,69 @@
+---
+_model: napalm_yang.oc_if.Interfaces()
+_execute:
+    config:
+        cli:
+            - show configuration interfaces
+
+interfaces:
+    interface:
+        _subblock_capture: "(?P<block>^(?P<key>\\S+) {{\\n(?:.|\\n)*?^}}$)"
+        name:
+            _search: "^(?P<value>\\S+) {{\\n"
+            _type: py23_compat.text_type
+        hold_time:
+            config:
+                down:
+                    _search: "napalm: not implemented"
+                    _type: int
+                    _default: 0
+                up:
+                    _search: "napalm: not implemented"
+                    _type: int
+                    _default: 0
+        config:
+            name:
+                _search: "(?P<value>\\S+) {{\\n"
+                _type: py23_compat.text_type
+            type_:
+                _search: "^(?P<value>[a-z]+).* {{\\n"
+                _type: mapping
+                _map:
+                    ge: napalm_yang.ianaift.Ethernetcsmacd
+                    lo: napalm_yang.ianaift.Softwareloopback
+                    ae: napalm_yang.ianaift.Ieee8023Adlag
+            enabled:
+                _absent: "disable"
+                _type: boolean
+                _default: False
+            description:
+                _search: "description (?P<value>.*)"
+                _type: py23_compat.text_type
+                _default: ""
+            mtu:
+                _search: "mtu (?P<value>[0-9]+)"
+                _type: int
+                _default: 1500
+        subinterfaces:
+            subinterface:
+                _subblock_capture: "(?P<block>^    unit (?P<key>\\d+)( {{\n(?:.|\\n)*?^    }}$|;$))"
+                index:
+                    _search: "napalm: not implemented"
+                    _type: int
+                    _default: 0
+                config:
+                    index:
+                        _search: "napalm: not implemented"
+                        _type: int
+                        _default: 0
+                    name:
+                        _search: "(^    unit (?P<value>\\d+)( {{\\n(?:.|\\n)*?^    }}$|;$))"
+                        _type: py23_compat.text_type
+                    enabled:
+                        _absent: "disable"
+                        _type: boolean
+                        _default: False
+                    description:
+                        _search: "description (?P<value>.*)"
+                        _type: py23_compat.text_type
+                        _default: ""
