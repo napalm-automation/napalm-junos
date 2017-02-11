@@ -24,8 +24,10 @@ interfaces:
                         _string: "set interface {key} disable\n"
             description:
                 _string: "set interface {key} description {value}\n"
+                _remove: "delete interface {key} description\n"
             mtu:
                 _string: "set interface {key} mtu {value}\n"
+                _remove: "delete interface {key} mtu\n"
         subinterfaces:
             subinterface:
                 _string: "set interface {parent_key}.{key}\n"
@@ -45,3 +47,4 @@ interfaces:
                                 _string: "delete interface {parent_key}.{key} disable\n"
                     description:
                         _string: "set interface {parent_key}.{key} description {value}\n"
+                        _remove: "delete interface {parent_key}.{key} description\n"
