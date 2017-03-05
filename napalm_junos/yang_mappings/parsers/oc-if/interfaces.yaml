@@ -4,12 +4,11 @@ metadata:
     parser: xml
     execute:
         config:
-            raw:
-                - path: _get_config_xml
-                  args:
-                      filter_xml: "<configuration><interfaces></interfaces></configuration>"
-                      options:
-                          source: running
+            - method: _get_config_xml
+              args:
+                  filter_xml: "<configuration><interfaces></interfaces></configuration>"
+                  options:
+                      source: running
 
 interfaces:
     interface:
