@@ -1,7 +1,7 @@
 ---
 metadata:
     prefix: "oc-if"
-    parser: xml
+    parser: XMLExtractor
     execute:
         config:
             - method: _get_config_xml

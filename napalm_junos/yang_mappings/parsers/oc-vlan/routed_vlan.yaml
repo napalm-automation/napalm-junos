@@ -1,7 +1,7 @@
 ---
 metadata:
     prefix: "oc-vlan"
-    parser: xml
+    parser: XMLExtractor
     execute:
         config: {}
 
