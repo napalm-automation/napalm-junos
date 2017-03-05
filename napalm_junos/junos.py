@@ -25,6 +25,7 @@ from copy import deepcopy
 
 # import third party lib
 from lxml.builder import E
+from lxml import etree
 
 from jnpr.junos import Device
 from jnpr.junos.utils.config import Config
@@ -108,6 +109,14 @@ class JunOSDriver(NetworkDriver):
         if self.locked:
             self.device.cu.unlock()
             self.locked = False
+
+    def _get_config_xml(self, options, filter_xml=None):
+        args = {"options": options}
+
+        if filter_xml:
+            args["filter_xml"] = etree.XML(filter_xml)
+
+        return self.device.rpc.get_config(**args)
 
     def is_alive(self):
         # evaluate the state of the underlying SSH connection
