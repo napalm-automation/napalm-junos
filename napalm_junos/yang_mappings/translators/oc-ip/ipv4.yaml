@@ -32,13 +32,13 @@ ipv4:
                     mode: unnecessary
                 ip:
                     _translation:
-                        mode: element
-                        element: name
+                        mode: unnecessary
                 prefix_length:
                     _translation:
-                        mode: format_existing_element
+                        mode: element
                         element: name
-                        string: "{previous}/{value}"
+                        # format_value: "{model._parent.ip.value}/{model.value}"
+                        format_value: "{address_key}"
             vrrp:
                 _translation:
                     mode: not_implemented
