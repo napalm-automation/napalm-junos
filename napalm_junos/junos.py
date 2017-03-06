@@ -139,8 +139,10 @@ class JunOSDriver(NetworkDriver):
             # and the device will be locked till first commit/rollback
 
         try:
-            self.device.cu.load(configuration, format='text', overwrite=overwrite)
+            configuration = etree.XML(configuration)
+            self.device.cu.load(configuration, format='xml', overwrite=overwrite)
         except ConfigLoadError as e:
+            print(e.__dict__)
             if self.config_replace:
                 raise ReplaceConfigException(e.message)
             else:

@@ -1,57 +1,82 @@
 ---
----
 metadata:
     prefix: "oc-if"
     parser: XMLTranslator
-    execute:
-        config: {}
+    xml_root: configuration
 
 interfaces:
+    _translation:
+        mode: container
+        container: interfaces
+        replace: true
     interface:
-        _string: "set interface {key}\n"
-        _remove: "delete interface {key}\n"
+        _translation:
+            mode: container
+            container: interface
+            key_element: name
+            key_value: name
         name:
-            _string: null
+            _translation:
+                mode: unnecessary
         hold_time:
+            _translation:
+                mode: unnecessary
             config:
+                _translation:
+                    mode: unnecessary
                 down:
-                    _string: null
+                    _translation:
+                        mode: not_implemented
                 up:
-                    _string: null
+                    _translation:
+                        mode: not_implemented
         config:
+            _translation:
+                mode: unnecessary
             name:
-                _string: null
+                _translation:
+                    mode: unnecessary
             type_:
-                _string: null
+                _translation:
+                    mode: unnecessary
             enabled:
-                _map:
-                    "true":
-                        _string: "delete interface {key} disable\n"
-                    "false":
-                        _string: "set interface {key} disable\n"
+                _translation:
+                    mode: if_false
+                    container: "disable"
             description:
-                _string: "set interface {key} description {value}\n"
-                _remove: "delete interface {key} description\n"
+                _translation:
+                    mode: element
+                    element: description
             mtu:
-                _string: "set interface {key} mtu {value}\n"
-                _remove: "delete interface {key} mtu\n"
+                _translation:
+                    mode: element
+                    element: mtu
         subinterfaces:
+            _translation:
+                mode: unnecessary
             subinterface:
-                _string: "set interface {parent_key}.{key}\n"
-                _remove: "delete interface {parent_key}.{key}\n"
+                _translation:
+                    mode: container
+                    container: unit
+                    key_element: name
+                    key_value: config.name
                 index:
-                    _string: null
+                    _translation:
+                        mode: unnecessary
                 config:
+                    _translation:
+                        mode: unnecessary
                     index:
-                        _string: null
+                        _translation:
+                            mode: not_implemented
                     name:
-                        _string: null
+                        _translation:
+                            mode: unnecessary
                     enabled:
-                        _map:
-                            "true":
-                                _string: "set interface {parent_key}.{key} disable\n"
-                            "false":
-                                _string: "delete interface {parent_key}.{key} disable\n"
+                        _translation:
+                            mode: if_false
+                            container: "disable"
                     description:
-                        _string: "set interface {parent_key}.{key} description {value}\n"
-                        _remove: "delete interface {parent_key}.{key} description\n"
+                            _translation:
+                                mode: element
+                                element: description

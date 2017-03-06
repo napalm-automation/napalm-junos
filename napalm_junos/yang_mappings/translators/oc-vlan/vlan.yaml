@@ -1,0 +1,15 @@
+---
+metadata:
+    prefix: "oc-vlan"
+    parser: XMLTranslator
+
+vlan:
+    _translation:
+        mode: unnecessary
+    config:
+        _translation:
+            mode: unnecessary
+        vlan_id:
+            _translation:
+                mode: element
+                element: "vlan-id"
