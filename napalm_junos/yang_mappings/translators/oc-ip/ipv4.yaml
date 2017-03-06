@@ -37,8 +37,7 @@ ipv4:
                     _translation:
                         mode: element
                         element: name
-                        # format_value: "{model._parent.ip.value}/{model.value}"
-                        format_value: "{address_key}"
+                        format_value: "{model._parent.ip.value}/{model.value}"
             vrrp:
                 _translation:
                     mode: not_implemented
