@@ -76,6 +76,7 @@ class JunOSDriver(NetworkDriver):
         self.config_lock = optional_args.get('config_lock', True)
 
         self.device = Device(hostname, user=username, password=password, port=self.port)
+        self.profile = "junos"
 
     def open(self):
         """Open the connection wit the device."""
