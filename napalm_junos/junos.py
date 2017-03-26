@@ -76,7 +76,7 @@ class JunOSDriver(NetworkDriver):
         self.config_lock = optional_args.get('config_lock', True)
 
         self.device = Device(hostname, user=username, password=password, port=self.port)
-        self.profile = "junos"
+        self.profile = ["junos"]
 
     def open(self):
         """Open the connection wit the device."""
@@ -111,13 +111,25 @@ class JunOSDriver(NetworkDriver):
             self.device.cu.unlock()
             self.locked = False
 
-    def _get_config_xml(self, options, filter_xml=None):
-        args = {"options": options}
+    def _rpc(self, get, child=None, **kwargs):
+        """
+        This allows you to construct an arbitrary RPC call to retreive common stuff. For example:
 
-        if filter_xml:
-            args["filter_xml"] = etree.XML(filter_xml)
+        Configuration:  get: "<get-configuration/>"
 
-        return self.device.rpc.get_config(**args)
+        Interface information:  get: "<get-interface-information/>"
+        A particular interfacece information:
+              get: "<get-interface-information/>"
+              child: "<interface-name>ge-0/0/0</interface-name>"
+
+        """
+        rpc = etree.fromstring(get)
+
+        if child:
+            rpc.append(etree.fromstring(child))
+
+        response = self.device.execute(rpc)
+        return etree.tostring(response)
 
     def is_alive(self):
         # evaluate the state of the underlying SSH connection
