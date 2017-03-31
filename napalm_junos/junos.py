@@ -55,7 +55,7 @@ log = logging.getLogger(__file__)
 class JunOSDriver(NetworkDriver):
     """JunOSDriver class - inherits NetworkDriver from napalm_base."""
 
-    def __init__(self, hostname, username, password='', timeout=60, optional_args={}):
+    def __init__(self, hostname, username, password, timeout=60, optional_args=None):
         """
         Initialise JunOS driver.
 
@@ -72,6 +72,9 @@ class JunOSDriver(NetworkDriver):
         self.locked = False
 
         # Get optional arguments
+        if optional_args is None:
+            optional_args = {}
+
         self.config_lock = optional_args.get('config_lock', True)
         self.port = optional_args.get('port', 22)
         self.ssh_keyfile = optional_args.get('ssh_keyfile', None)
