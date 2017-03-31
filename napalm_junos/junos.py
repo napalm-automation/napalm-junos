@@ -80,7 +80,10 @@ class JunOSDriver(NetworkDriver):
         self.key_file = optional_args.get('key_file', None)
 
         if self.key_file:
-            self.device = Device(hostname, user=username, ssh_private_key_file=self.key_file, port=self.port)
+            self.device = Device(hostname,
+                                 user=username,
+                                 ssh_private_key_file=self.key_file,
+                                 port=self.port)
         else:
             self.device = Device(hostname, user=username, password=password, port=self.port)
 
