@@ -56,13 +56,14 @@ log = logging.getLogger(__file__)
 class JunOSDriver(NetworkDriver):
     """JunOSDriver class - inherits NetworkDriver from napalm_base."""
 
-    def __init__(self, hostname, username, password, timeout=60, optional_args=None):
+    def __init__(self, hostname, username, password='', timeout=60, optional_args={}):
         """
         Initialise JunOS driver.
 
         Optional args:
-            * port (int): custom port
             * config_lock (True/False): lock configuration DB after the connection is established.
+            * port (int): custom port
+            * ssh_keyfile (string): SSH key file path
         """
         self.hostname = hostname
         self.username = username
@@ -71,12 +72,15 @@ class JunOSDriver(NetworkDriver):
         self.config_replace = False
         self.locked = False
 
-        if optional_args is None:
-            optional_args = {}
-        self.port = optional_args.get('port', 22)
+        # Get optional arguments
         self.config_lock = optional_args.get('config_lock', True)
+        self.port = optional_args.get('port', 22)
+        self.ssh_keyfile = optional_args.get('ssh_keyfile', None)
 
-        self.device = Device(hostname, user=username, password=password, port=self.port)
+        if self.ssh_keyfile:
+            self.device = Device(hostname, user=username, ssh_private_key_file=self.ssh_keyfile)
+        else:
+            self.device = Device(hostname, user=username, password=password, port=self.port)
 
         self.profile = ["junos"]
 
