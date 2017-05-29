@@ -1101,8 +1101,8 @@ class JunOSDriver(NetworkDriver):
 
         return mac_address_table
 
-    def get_route_to(self, destination='', protocol=''):
-        """Return route details to a specific destination, learned from a certain protocol."""
+    def get_route_to(self, destination='', protocol='', table=''):
+        """Return route details to a specific destination, learned from a certain protocol, visible in a particular table."""
         routes = {}
 
         if not isinstance(destination, py23_compat.string_types):
@@ -1113,6 +1113,9 @@ class JunOSDriver(NetworkDriver):
 
         if protocol == 'connected':
             protocol = 'direct'  # this is how is called on JunOS
+
+        if table and not isinstance(table, py23_compat.string_types):
+            raise TypeError('Please specify a valid table!')
 
         _COMMON_PROTOCOL_FIELDS_ = [
             'destination',
@@ -1161,6 +1164,9 @@ class JunOSDriver(NetworkDriver):
         }
         if protocol and isinstance(destination, py23_compat.string_types):
             rt_kargs['protocol'] = protocol
+
+        if table:
+            rt_kargs['table'] = table
 
         try:
             routes_table.get(**rt_kargs)
