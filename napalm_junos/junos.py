@@ -1165,8 +1165,9 @@ class JunOSDriver(NetworkDriver):
         if protocol and isinstance(destination, py23_compat.string_types):
             rt_kargs['protocol'] = protocol
 
+        #table is (almost) a vrf
         if vrf:
-            rt_kargs['vrf'] = vrf
+            rt_kargs['table'] = vrf
 
         try:
             routes_table.get(**rt_kargs)
