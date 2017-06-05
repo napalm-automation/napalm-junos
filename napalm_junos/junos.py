@@ -21,6 +21,7 @@ from __future__ import unicode_literals
 import re
 import json
 import logging
+import functools
 import collections
 from copy import deepcopy
 
@@ -64,6 +65,7 @@ def _raise_conn_closed(meth):
     This function can be later extended to raise other
     napalm-specific methods, e.g.: LockError etc.
     '''
+    @functools.wraps(meth)
     def fun(*args, **kwargs):
         try:
             return meth(*args, **kwargs)
