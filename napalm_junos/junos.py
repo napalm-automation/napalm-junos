@@ -33,6 +33,7 @@ from jnpr.junos.utils.config import Config
 from jnpr.junos.exception import RpcError
 from jnpr.junos.exception import ConfigLoadError
 from jnpr.junos.exception import RpcTimeoutError
+from jnpr.junos.exception import ConnectError
 from jnpr.junos.exception import ConnectTimeoutError
 
 # import NAPALM Base
@@ -103,6 +104,8 @@ class JunOSDriver(NetworkDriver):
         try:
             self.device.open()
         except ConnectTimeoutError as cte:
+            raise ConnectionException(cte.message)
+        except ConnectError as cte:
             raise ConnectionException(cte.message)
         self.device.timeout = self.timeout
         self.device._conn._session.transport.set_keepalive(self.keepalive)
