@@ -21,6 +21,7 @@ from __future__ import unicode_literals
 import re
 import json
 import logging
+import functools
 import collections
 from copy import deepcopy
 
@@ -34,6 +35,7 @@ from jnpr.junos.exception import RpcError
 from jnpr.junos.exception import ConfigLoadError
 from jnpr.junos.exception import RpcTimeoutError
 from jnpr.junos.exception import ConnectTimeoutError
+from jnpr.junos.exception import ConnectClosedError
 
 # import NAPALM Base
 import napalm_base.helpers
@@ -46,6 +48,7 @@ from napalm_base.exceptions import MergeConfigException
 from napalm_base.exceptions import CommandErrorException
 from napalm_base.exceptions import ReplaceConfigException
 from napalm_base.exceptions import CommandTimeoutException
+from napalm_base.exceptions import ConnectionClosedException
 
 # import local modules
 from napalm_junos.utils import junos_views
@@ -53,8 +56,44 @@ from napalm_junos.utils import junos_views
 log = logging.getLogger(__file__)
 
 
+def _raise_conn_closed(meth):
+    '''
+    Wrap a certain method and catch ConnectClosedError
+    raised by junos-eznc and instead raise
+    napalm_base.exceptions.ConnectionClosedException.
+
+    This function can be later extended to raise other
+    napalm-specific methods, e.g.: LockError etc.
+    '''
+    @functools.wraps(meth)
+    def fun(*args, **kwargs):
+        try:
+            return meth(*args, **kwargs)
+        except ConnectClosedError as conn_err:
+            log.error('Connection closed.', exc_info=True)
+            raise ConnectionClosedException(str(conn_err))
+    return fun
+
+
+class _JunOSErrorCatcherMeta(type):
+    '''
+    Metaclass to wrap the methods under the JunOSDriver class
+    with the _raise_conn_closed function.
+    '''
+    def __new__(cls, name, bases, dct):
+        log.info('Setting up metaclass')
+        for meth in dct:
+            if not meth.startswith('_') and hasattr(dct[meth], '__call__'):
+                log.debug('Wrapping {}'.format(meth))
+                dct[meth] = _raise_conn_closed(dct[meth])
+        return type.__new__(cls, name, bases, dct)
+
+
 class JunOSDriver(NetworkDriver):
     """JunOSDriver class - inherits NetworkDriver from napalm_base."""
+
+    # Important: use the _JunOSErrorCatcherMeta metaclass
+    __metaclass__ = _JunOSErrorCatcherMeta
 
     def __init__(self, hostname, username, password, timeout=60, optional_args=None):
         """
