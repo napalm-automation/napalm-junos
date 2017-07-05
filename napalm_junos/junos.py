@@ -206,7 +206,7 @@ class JunOSDriver(NetworkDriver):
 
             if fmt == "xml":
                 configuration = etree.XML(configuration)
-            # add ignore_warning optional arg
+
             self.device.cu.load(configuration, format=fmt, overwrite=overwrite,
                                 ignore_warning=self.ignore_warning)
         except ConfigLoadError as e:
