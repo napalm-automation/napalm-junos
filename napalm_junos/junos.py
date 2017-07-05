@@ -65,7 +65,7 @@ class JunOSDriver(NetworkDriver):
             * port (int): custom port
             * key_file (string): SSH key file path
             * keepalive (int): Keepalive interval
-            * ignore_warning (boolean): not generate warning exceptions duuuuring loading
+            * ignore_warning (boolean): not generate warning exceptions
         """
         self.hostname = hostname
         self.username = username
@@ -207,12 +207,8 @@ class JunOSDriver(NetworkDriver):
             if fmt == "xml":
                 configuration = etree.XML(configuration)
             # add ignore_warning optional arg
-            if self.ignore_warning:
-                self.device.cu.load(configuration, format=fmt,
-                                    overwrite=overwrite, ignore_warning=True)
-            else:
-                self.device.cu.load(configuration, format=fmt,
-                                    overwrite=overwrite)
+            self.device.cu.load(configuration, format=fmt, overwrite=overwrite,
+                                ignore_warning=self.ignore_warning)
         except ConfigLoadError as e:
             if self.config_replace:
                 raise ReplaceConfigException(e.message)
