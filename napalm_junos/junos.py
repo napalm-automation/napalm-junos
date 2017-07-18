@@ -1425,7 +1425,8 @@ class JunOSDriver(NetworkDriver):
                    source=C.TRACEROUTE_SOURCE,
                    ttl=C.TRACEROUTE_TTL,
                    timeout=C.TRACEROUTE_TIMEOUT,
-                   vrf=C.TRACEROUTE_VRF):
+                   vrf=C.TRACEROUTE_VRF
+                   no_resolve=''):
         """Execute traceroute and return results."""
         traceroute_result = {}
 
@@ -1446,13 +1447,13 @@ class JunOSDriver(NetworkDriver):
         if vrf:
             vrf_str = ' routing-instance {vrf}'.format(vrf=vrf)
 
-        traceroute_command = 'traceroute {destination}{source}{maxttl}{wait}{vrf}'.format(
+        traceroute_command = 'traceroute {destination}{source}{maxttl}{wait}{vrf}{no_resolve}'.format(
             destination=destination,
             source=source_str,
             maxttl=maxttl_str,
             wait=wait_str,
-            vrf=vrf_str
-        )
+            vrf=vrf_str,
+            no_resolve=no_resolve)
 
         traceroute_rpc = E('command', traceroute_command)
         rpc_reply = self.device._conn.rpc(traceroute_rpc)._NCElement__doc
