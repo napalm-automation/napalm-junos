@@ -66,6 +66,7 @@ class JunOSDriver(NetworkDriver):
             * key_file (string): SSH key file path
             * keepalive (int): Keepalive interval
             * ignore_warning (boolean): not generate warning exceptions
+            * no_resolve (boolean): add 'no-resolve' key word to traceroute
         """
         self.hostname = hostname
         self.username = username
@@ -84,6 +85,7 @@ class JunOSDriver(NetworkDriver):
         self.keepalive = optional_args.get('keepalive', 30)
         self.ssh_config_file = optional_args.get('ssh_config_file', None)
         self.ignore_warning = optional_args.get('ignore_warning', False)
+        self.no_resolve = optional_args.get('no_resolve', False)
 
         if self.key_file:
             self.device = Device(hostname,
@@ -1436,6 +1438,7 @@ class JunOSDriver(NetworkDriver):
         maxttl_str = ''
         wait_str = ''
         vrf_str = ''
+        no_resolve_str = ''
 
         if source:
             source_str = ' source {source}'.format(source=source)
@@ -1445,14 +1448,16 @@ class JunOSDriver(NetworkDriver):
             wait_str = ' wait {timeout}'.format(timeout=timeout)
         if vrf:
             vrf_str = ' routing-instance {vrf}'.format(vrf=vrf)
+        if self.no_resolve:
+            no_resolve_str = 'no-resolve'
 
-        traceroute_command = 'traceroute {destination}{source}{maxttl}{wait}{vrf}'.format(
+        traceroute_command = 'traceroute {destination}{source}{maxttl}{wait}{vrf}{no_resolve}'.format(
             destination=destination,
             source=source_str,
             maxttl=maxttl_str,
             wait=wait_str,
-            vrf=vrf_str
-        )
+            vrf=vrf_str,
+            no_resolve=no_resolve_str)
 
         traceroute_rpc = E('command', traceroute_command)
         rpc_reply = self.device._conn.rpc(traceroute_rpc)._NCElement__doc
