@@ -1007,6 +1007,7 @@ class JunOSDriver(NetworkDriver):
             'remote_port': 0,
             'multihop': False,
             'multipath': False,
+            'route_reflector_client': False,
             'remove_private_as': False,
             'import_policy': u'',
             'export_policy': u'',
