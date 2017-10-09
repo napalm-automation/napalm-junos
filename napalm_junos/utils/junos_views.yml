@@ -348,6 +348,7 @@ junos_bgp_neighbors_view:
     peer_fwd_rti: peer-fwd-rti
     local_address: local-address
     peer_address: peer-address
+    route_reflector_client: {route-reflector-client: True=route-reflector-client}
     options: bgp-option-information/bgp-options
     import_policy: {bgp-option-information/import-policy: unicode}
     export_policy: {bgp-option-information/export-policy: unicode}
