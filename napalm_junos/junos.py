@@ -907,6 +907,33 @@ class JunOSDriver(NetworkDriver):
             _COMMON_FIELDS_DATATYPE_
         )
 
+        _GLOBAL_FIELDS_DATATYPE_MAP_ = {
+            'description': py23_compat.text_type,
+            'apply_groups': list,
+            'remove_private_as': bool,
+            'multihop_ttl': int,
+            'local_address': py23_compat.text_type,
+            'local_as': int,
+            'import_policy': py23_compat.text_type,
+            'export_policy': py23_compat.text_type,
+            'inet_unicast_limit_prefix_limit': int,
+            'inet_unicast_teardown_threshold_prefix_limit': int,
+            'inet_unicast_teardown_timeout_prefix_limit': int,
+            'inet_unicast_novalidate_prefix_limit': int,
+            'inet_flow_limit_prefix_limit': int,
+            'inet_flow_teardown_threshold_prefix_limit': int,
+            'inet_flow_teardown_timeout_prefix_limit': int,
+            'inet_flow_novalidate_prefix_limit': py23_compat.text_type,
+            'inet6_unicast_limit_prefix_limit': int,
+            'inet6_unicast_teardown_threshold_prefix_limit': int,
+            'inet6_unicast_teardown_timeout_prefix_limit': int,
+            'inet6_unicast_novalidate_prefix_limit': int,
+            'inet6_flow_limit_prefix_limit': int,
+            'inet6_flow_teardown_threshold_prefix_limit': int,
+            'inet6_flow_teardown_timeout_prefix_limit': int,
+            'inet6_flow_novalidate_prefix_limit': py23_compat.text_type
+        }
+
         _DATATYPE_DEFAULT_ = {
             py23_compat.text_type: '',
             int: 0,
@@ -923,6 +950,9 @@ class JunOSDriver(NetworkDriver):
             bgp = junos_views.junos_bgp_config_table(self.device)
             bgp.get()
             neighbor = ''  # if no group is set, no neighbor should be set either
+            global_table = junos_views.junos_bgp_global_config_table(self.device)
+            global_table.get()
+            global_items = global_table.items()
         bgp_items = bgp.items()
 
         if neighbor:
@@ -1027,6 +1057,50 @@ class JunOSDriver(NetworkDriver):
         if 'cluster' in bgp_config[bgp_group_name].keys():
             # we do not want cluster in the output
             del bgp_config[bgp_group_name]['cluster']
+
+        # Global configuration
+        for bgp_global in global_items:
+            bgp_group_name = "GLOBAL"
+            bgp_global_details = bgp_global[1]
+            bgp_config[bgp_group_name] = {
+                field: _DATATYPE_DEFAULT_.get(datatype)
+                for field, datatype in _GLOBAL_FIELDS_DATATYPE_MAP_.items()
+                if '_prefix_limit' not in field
+            }
+            for elem in bgp_global_details:
+                if not('_prefix_limit' not in elem[0] and elem[1] is not None):
+                    continue
+                datatype = _GLOBAL_FIELDS_DATATYPE_MAP_.get(elem[0])
+                default = _DATATYPE_DEFAULT_.get(datatype)
+                key = elem[0]
+                value = elem[1]
+                if key in ['export_policy', 'import_policy']:
+                    if isinstance(value, list):
+                        value = ' '.join(value)
+                if key == 'local_address':
+                    value = napalm_base.helpers.convert(
+                        napalm_base.helpers.ip, value, value)
+                if key == 'neighbors':
+                    continue
+                bgp_config[bgp_group_name].update({
+                    key: napalm_base.helpers.convert(datatype, value, default)
+                })
+            prefix_limit_fields = {}
+            for elem in bgp_group_details:
+                if '_prefix_limit' in elem[0] and elem[1] is not None:
+                    datatype = _GLOBAL_FIELDS_DATATYPE_MAP_.get(elem[0])
+                    default = _DATATYPE_DEFAULT_.get(datatype)
+                    prefix_limit_fields.update({
+                        elem[0].replace('_prefix_limit', ''):
+                            napalm_base.helpers.convert(datatype, elem[1], default)
+                    })
+            bgp_config[bgp_group_name]['prefix_limit'] = build_prefix_limit(**prefix_limit_fields)
+            if 'multihop' in bgp_config[bgp_group_name].keys():
+                # Delete 'multihop' key from the output
+                del bgp_config[bgp_group_name]['multihop']
+                if bgp_config[bgp_group_name]['multihop_ttl'] == 0:
+                    # Set ttl to default value 64
+                    bgp_config[bgp_group_name]['multihop_ttl'] = 64
 
         return bgp_config
 

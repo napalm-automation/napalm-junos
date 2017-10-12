@@ -237,6 +237,13 @@ junos_lldp_neighbors_detail_view:
 ### BGP config
 ###
 
+junos_bgp_global_config_table:
+  get: protocols/bgp
+  # In order to avoid the creation of a new table, we will assume
+  # all options in group config are available in global config and
+  # remove the options not avaiable within get_bgp_config()
+  view: junos_bgp_config_view
+  key: .
 
 junos_bgp_config_table:
   get: protocols/bgp/group
