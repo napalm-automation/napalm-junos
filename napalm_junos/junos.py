@@ -1375,8 +1375,8 @@ class JunOSDriver(NetworkDriver):
 
         return mac_address_table
 
-    def get_route_to(self, destination='', protocol=''):
-        """Return route details to a specific destination, learned from a certain protocol."""
+    def get_route_to(self, destination='', protocol='', vrf=''):
+        """Return route details to a specific destination, learned from a certain protocol, visible in a particular vrf (table)."""
         routes = {}
 
         if not isinstance(destination, py23_compat.string_types):
@@ -1387,6 +1387,9 @@ class JunOSDriver(NetworkDriver):
 
         if protocol == 'connected':
             protocol = 'direct'  # this is how is called on JunOS
+
+        if vrf and not isinstance(vrf, py23_compat.string_types):
+            raise TypeError('Please specify a valid vrf!')
 
         _COMMON_PROTOCOL_FIELDS_ = [
             'destination',
@@ -1435,6 +1438,10 @@ class JunOSDriver(NetworkDriver):
         }
         if protocol and isinstance(destination, py23_compat.string_types):
             rt_kargs['protocol'] = protocol
+
+        #table is (almost) a vrf
+        if vrf:
+            rt_kargs['table'] = vrf
 
         try:
             routes_table.get(**rt_kargs)
