@@ -67,6 +67,7 @@ junos_bgp_view:
     received_prefixes: { bgp-rib/received-prefix-count: int }
     accepted_prefixes: { bgp-rib/accepted-prefix-count: int }
     sent_prefixes: { bgp-rib/advertised-prefix-count: int }
+    send-state: bgp-rib/send-state
     tables: bgp-rib/name
     local_as: { local-as: int }
     peer_as: { peer-as: int }
@@ -96,7 +97,7 @@ junos_iface_counter_table:
   rpc: get-interface-information
   args:
     extensive: True
-    interface_name: '[vmfgx][mle]*'
+    interface_name: '[vmfgxe][mlet]*'
   args_key: interface_name
   item: physical-interface
   view: junos_iface_counter_view
@@ -144,6 +145,18 @@ junos_enviroment_view:
     class: class
     status: status
     temperature: { temperature/@celsius: int }
+
+junos_pem_table:
+  rpc: get-power-usage-information-detail
+  args:
+  item: power-usage-item
+  key: name
+  view: junos_pem_view
+
+junos_pem_view:
+  fields:
+    capacity: { pem-capacity-detail/capacity-actual: float }
+    output: { dc-output-detail/dc-power: float }
 
 junos_routing_engine_table:
   rpc: get-route-engine-information
@@ -241,9 +254,11 @@ junos_bgp_config_view:
     description: {description: unicode}
     apply_groups: {apply-groups: unicode}
     local_address: {local-address: unicode}
+    multihop: multihop
     multihop_ttl: {multihop/ttl: int}
     local_as: {local-as/as-number: int}
     remote_as: {peer-as: int}
+    cluster: cluster
     multipath: multipath
     remove_private_as: remove-private
     import_policy: {import: unicode}
@@ -277,7 +292,8 @@ junos_bgp_config_peers_view:
     import_policy: {import: unicode}
     export_policy: {export: unicode}
     local_address: {local-address: unicode}
-    local_as: {ocal-as: int}
+    local_as: {local-as/as-number: int}
+    cluster: cluster
     remote_as: {peer-as: int}
     authentication_key: {authentication_key: unicode}
     inet_unicast_limit_prefix_limit: {family/inet/unicast/prefix-limit/maximum: int}
@@ -468,6 +484,25 @@ junos_mac_address_view_switch:
     vlan: {mac-vlan-tag: int}
     static: {mac-type: True=Static}
 
+# Yet another table struct & view for L2NG devices
+
+junos_mac_address_table_switch_l2ng:
+  rpc: get-ethernet-switching-table-information
+  item: l2ng-l2ald-mac-entry-vlan
+  args:
+    extensive: True
+  args_key:
+    - interface_name
+    - vlan
+  key: l2ng-l2-vlan-id
+  view: junos_mac_address_view_switch_l2ng
+
+junos_mac_address_view_switch_l2ng:
+  fields:
+    interface: {l2ng-l2-mac-logical-interface: unicode}
+    mac: {l2ng-l2-mac-address: unicode}
+    vlan: {l2ng-l2-vlan-id: int}
+
 ###
 ### Route Information
 ###
@@ -631,6 +666,19 @@ junos_intf_optics_view:
     laser_bias_current: laser-bias-current
     output_power: laser-output-power-dbm
     input_power: rx-signal-avg-optical-power-dbm
+
+junos_intf_40Goptics_table:
+  rpc: get-interface-optics-diagnostics-information
+  item: physical-interface/optics-diagnostics/optics-diagnostics-lane-values
+  key: lane-index
+  view: junos_intf_40Goptics_view
+
+junos_intf_40Goptics_view:
+  fields:
+    interface: ../../name
+    laser_bias_current: laser-bias-current
+    output_power: laser-output-power-dbm
+    input_power: laser-rx-optical-power-dbm
 
 ###
 ### Get network instances

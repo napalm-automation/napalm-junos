@@ -39,7 +39,6 @@ from jnpr.junos.exception import ConnectTimeoutError
 # import NAPALM Base
 import napalm_base.helpers
 from napalm_base.base import NetworkDriver
-from napalm_base.utils import string_parsers
 from napalm_base.utils import py23_compat
 import napalm_junos.constants as C
 from napalm_base.exceptions import ConnectionException
@@ -89,6 +88,7 @@ class JunOSDriver(NetworkDriver):
         if self.key_file:
             self.device = Device(hostname,
                                  user=username,
+                                 password=password,
                                  ssh_private_key_file=self.key_file,
                                  ssh_config=self.ssh_config_file,
                                  port=self.port)
@@ -256,9 +256,7 @@ class JunOSDriver(NetworkDriver):
         """Return facts of the device."""
         output = self.device.facts
 
-        uptime = '0'
-        if 'RE0' in output:
-            uptime = output['RE0']['up_time']
+        uptime = self.device.uptime or -1
 
         interfaces = junos_views.junos_iface_table(self.device)
         interfaces.get()
@@ -271,7 +269,7 @@ class JunOSDriver(NetworkDriver):
             'os_version': py23_compat.text_type(output['version']),
             'hostname': py23_compat.text_type(output['hostname']),
             'fqdn': py23_compat.text_type(output['fqdn']),
-            'uptime': string_parsers.convert_uptime_string_seconds(uptime),
+            'uptime': uptime,
             'interface_list': interface_list
         }
 
@@ -324,6 +322,7 @@ class JunOSDriver(NetworkDriver):
         environment = junos_views.junos_enviroment_table(self.device)
         routing_engine = junos_views.junos_routing_engine_table(self.device)
         temperature_thresholds = junos_views.junos_temperature_thresholds(self.device)
+        power_supplies = junos_views.junos_pem_table(self.device)
         environment.get()
         routing_engine.get()
         temperature_thresholds.get()
@@ -350,7 +349,6 @@ class JunOSDriver(NetworkDriver):
                     environment_data['power'] = {}
                     environment_data['power'][sensor_object] = {}
 
-                # Set these values to -1, because Junos does not provide them
                 environment_data['power'][sensor_object]['capacity'] = -1.0
                 environment_data['power'][sensor_object]['output'] = -1.0
 
@@ -401,6 +399,21 @@ class JunOSDriver(NetworkDriver):
                         environment_data['temperature'][sensor_object]['is_alert'] = True
                     elif structured_temperature_data['yellow-alarm'] <= temp:
                         environment_data['temperature'][sensor_object]['is_alert'] = True
+
+        # Try to correct Power Supply information
+        pem_table = dict()
+        try:
+            power_supplies.get()
+        except RpcError:
+            # Not all platforms have support for this
+            pass
+        else:
+            # Format PEM information and correct capacity and output values
+            for pem in power_supplies.items():
+                pem_name = pem[0].replace("PEM", "Power Supply")
+                pem_table[pem_name] = dict(pem[1])
+                environment_data['power'][pem_name]['capacity'] = pem_table[pem_name]['capacity']
+                environment_data['power'][pem_name]['output'] = pem_table[pem_name]['output']
 
         for routing_engine_object, routing_engine_data in routing_engine.items():
             structured_routing_engine_data = {k: v for k, v in routing_engine_data}
@@ -470,12 +483,19 @@ class JunOSDriver(NetworkDriver):
         if not neighbor['is_up']:
             return data
         elif isinstance(neighbor['tables'], list):
+            if isinstance(neighbor['sent_prefixes'], int):
+                # We expect sent_prefixes to be a list, but sometimes it
+                # is of type int. Therefore convert attribute to list
+                neighbor['sent_prefixes'] = [neighbor['sent_prefixes']]
             for idx, table in enumerate(neighbor['tables']):
                 family = self._get_address_family(table)
                 data[family] = {}
                 data[family]['received_prefixes'] = neighbor['received_prefixes'][idx]
                 data[family]['accepted_prefixes'] = neighbor['accepted_prefixes'][idx]
-                data[family]['sent_prefixes'] = neighbor['sent_prefixes'][idx]
+                if 'in sync' in neighbor['send-state'][idx]:
+                    data[family]['sent_prefixes'] = neighbor['sent_prefixes'].pop(0)
+                else:
+                    data[family]['sent_prefixes'] = 0
         else:
             family = self._get_address_family(neighbor['tables'])
             data[family] = {}
@@ -736,12 +756,23 @@ class JunOSDriver(NetworkDriver):
             ]
             return '\n'.join(matched)
 
+        def _find(txt, pattern):
+            '''
+            Search for first occurrence of pattern.
+            '''
+            rgx = '^.*({pattern})(.*)$'.format(pattern=pattern)
+            match = re.search(rgx, txt, re.I | re.M | re.DOTALL)
+            if match:
+                return '{pattern}{rest}'.format(pattern=pattern, rest=match.group(2))
+            else:
+                return '\nPattern not found'
+
         def _process_pipe(cmd, txt):
             '''
             Process CLI output from Juniper device that
             doesn't allow piping the output.
             '''
-            if not txt:
+            if txt is not None:
                 return txt
             _OF_MAP = OrderedDict()
             _OF_MAP['except'] = _except
@@ -749,6 +780,7 @@ class JunOSDriver(NetworkDriver):
             _OF_MAP['last'] = _last
             _OF_MAP['trim'] = _trim
             _OF_MAP['count'] = _count
+            _OF_MAP['find'] = _find
             # the operations order matter in this case!
             exploded_cmd = cmd.split('|')
             pipe_oper_args = {}
@@ -946,6 +978,12 @@ class JunOSDriver(NetworkDriver):
                             napalm_base.helpers.convert(datatype, elem[1], default)
                     })
             bgp_config[bgp_group_name]['prefix_limit'] = build_prefix_limit(**prefix_limit_fields)
+            if 'multihop' in bgp_config[bgp_group_name].keys():
+                # Delete 'multihop' key from the output
+                del bgp_config[bgp_group_name]['multihop']
+                if bgp_config[bgp_group_name]['multihop_ttl'] == 0:
+                    # Set ttl to default value 64
+                    bgp_config[bgp_group_name]['multihop_ttl'] = 64
 
             bgp_config[bgp_group_name]['neighbors'] = {}
             for bgp_group_neighbor in bgp_group_peers.items():
@@ -978,6 +1016,13 @@ class JunOSDriver(NetworkDriver):
                         bgp_peer_details['local_as'])
                     bgp_peer_details['remote_as'] = napalm_base.helpers.as_number(
                         bgp_peer_details['remote_as'])
+                    if key == 'cluster':
+                        bgp_peer_details['route_reflector_client'] = True
+                        # we do not want cluster in the output
+                        del bgp_peer_details['cluster']
+
+                if 'cluster' in bgp_config[bgp_group_name].keys():
+                    bgp_peer_details['route_reflector_client'] = True
                 prefix_limit_fields = {}
                 for elem in bgp_group_details:
                     if '_prefix_limit' in elem[0] and elem[1] is not None:
@@ -991,6 +1036,10 @@ class JunOSDriver(NetworkDriver):
                 bgp_config[bgp_group_name]['neighbors'][bgp_peer_address] = bgp_peer_details
                 if neighbor and bgp_peer_address == neighbor_ip:
                     break  # found the desired neighbor
+
+            if 'cluster' in bgp_config[bgp_group_name].keys():
+                # we do not want cluster in the output
+                del bgp_config[bgp_group_name]['cluster']
 
         return bgp_config
 
@@ -1120,7 +1169,10 @@ class JunOSDriver(NetworkDriver):
                 }
                 for rib_entry in neighbor_rib_stats:
                     for elem in rib_entry[1]:
-                        neighbor_rib_details[elem[0]] += elem[1]
+                        if elem[1] is None:
+                            neighbor_rib_details[elem[0]] += 0
+                        else:
+                            neighbor_rib_details[elem[0]] += elem[1]
                 neighbor_details.update(neighbor_rib_details)
                 bgp_neighbors[instance_name][remote_as].append(neighbor_details)
 
@@ -1135,7 +1187,7 @@ class JunOSDriver(NetworkDriver):
                 # junos internal instances
                 continue
             neighbor_data = bgp_neighbors_table.get(instance=instance,
-                                                    neighbor_address=neighbor_address).items()
+                                                    neighbor_address=str(neighbor_address)).items()
             _bgp_iter_core(neighbor_data, instance=instance)
         # else:
         #     bgp_neighbors_table = junos_views.junos_bgp_neighbors_table(self.device)
@@ -1287,7 +1339,10 @@ class JunOSDriver(NetworkDriver):
         mac_address_table = []
 
         if self.device.facts.get('personality', '') in ['SWITCH']:  # for EX & QFX devices
-            mac_table = junos_views.junos_mac_address_table_switch(self.device)
+            if self.device.facts.get('switch_style', '') in ['VLAN_L2NG']:  # for L2NG devices
+                mac_table = junos_views.junos_mac_address_table_switch_l2ng(self.device)
+            else:
+                mac_table = junos_views.junos_mac_address_table_switch(self.device)
         else:
             mac_table = junos_views.junos_mac_address_table(self.device)
 
@@ -1763,20 +1818,60 @@ class JunOSDriver(NetworkDriver):
         optics_table.get()
         optics_items = optics_table.items()
 
-        # Formatting data into return data structure
-        optics_detail = {}
+        # optics_items has no lane information, so we need to re-format data
+        # inserting lane 0 for all optics. Note it contains all optics 10G/40G/100G
+        # but the information for 40G/100G is incorrect at this point
+        # Example: intf_optic item is now: ('xe-0/0/0', [ optical_values ])
+        optics_items_with_lane = []
         for intf_optic_item in optics_items:
+            temp_list = list(intf_optic_item)
+            temp_list.insert(1, u"0")
+            new_intf_optic_item = tuple(temp_list)
+            optics_items_with_lane.append(new_intf_optic_item)
+
+        # Now optics_items_with_lane has all optics with lane 0 included
+        # Example: ('xe-0/0/0', u'0', [ optical_values ])
+
+        # Get optical information for 40G/100G optics
+        optics_table40G = junos_views.junos_intf_40Goptics_table(self.device)
+        optics_table40G.get()
+        optics_40Gitems = optics_table40G.items()
+
+        # Re-format data as before inserting lane value
+        new_optics_40Gitems = []
+        for item in optics_40Gitems:
+            lane = item[0]
+            iface = item[1].pop(0)
+            new_optics_40Gitems.append((iface[1], py23_compat.text_type(lane), item[1]))
+
+        # New_optics_40Gitems contains 40G/100G optics only:
+        # ('et-0/0/49', u'0', [ optical_values ]),
+        # ('et-0/0/49', u'1', [ optical_values ]),
+        # ('et-0/0/49', u'2', [ optical_values ])
+
+        # Remove 40G/100G optics entries with wrong information returned
+        # from junos_intf_optics_table()
+        iface_40G = [item[0] for item in new_optics_40Gitems]
+        for intf_optic_item in optics_items_with_lane:
+            iface_name = intf_optic_item[0]
+            if iface_name not in iface_40G:
+                new_optics_40Gitems.append(intf_optic_item)
+
+        # New_optics_40Gitems contains all optics 10G/40G/100G with the lane
+        optics_detail = {}
+        for intf_optic_item in new_optics_40Gitems:
+            lane = intf_optic_item[1]
             interface_name = py23_compat.text_type(intf_optic_item[0])
-            optics = dict(intf_optic_item[1])
+            optics = dict(intf_optic_item[2])
             if interface_name not in optics_detail:
                 optics_detail[interface_name] = {}
+                optics_detail[interface_name]['physical_channels'] = {}
+                optics_detail[interface_name]['physical_channels']['channel'] = []
 
             # Defaulting avg, min, max values to 0.0 since device does not
             # return these values
             intf_optics = {
-                'physical_channels': {
-                    'channel': [{
-                            'index': 0,
+                            'index': int(lane),
                             'state': {
                                 'input_power': {
                                     'instant': (
@@ -1809,10 +1904,8 @@ class JunOSDriver(NetworkDriver):
                                     'min': 0.0
                                     }
                                 }
-                        }]
-                    }
-                }
-            optics_detail[interface_name] = intf_optics
+                            }
+            optics_detail[interface_name]['physical_channels']['channel'].append(intf_optics)
 
         return optics_detail
 
